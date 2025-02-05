@@ -12,12 +12,12 @@ Before diving into the Jupyter Notebook in the notebooks/ directory, you will ne
 
 If you have already generated a token and it hasn't expired, it will be listed on this page. Press the green button to generate a new token if you need a new one, or copy your existing token. Next you will want to copy the .env.example file and save it as .env in this directory with your copied token credential. You can edit the new .env file yourself in a text editor or use the commands below:
 
-### On MacOS/Linux
+**On MacOS/Linux**
 ```bash
 echo "NASA_EARTHDATA_TOKEN=<paste your token here>" > .env
 ```
 
-### On Windows
+**On Windows**
 ```powershell
 Set-Content .env "NASA_EARTHDATA_TOKEN=<paste your token here>"
 ```
@@ -26,12 +26,12 @@ Set-Content .env "NASA_EARTHDATA_TOKEN=<paste your token here>"
 
 The provided setup script will install the required packages :
 
-### On MacOS/Linux
+**On MacOS/Linux**
 ```bash
 ./setup.sh
 ```
 
-### On Windows (TO DO: test this script)
+**On Windows (TO DO: test this script)**
 ```powershell
 .\setup.ps1
 ```
