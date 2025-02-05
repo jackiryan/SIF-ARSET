@@ -1,4 +1,10 @@
-bs4
+beautifulsoup4
+cartopy
+ipykernel
+jupyter
+matplotlib
+notebook
+numpy
 pydap
 python-dotenv
 requests

@@ -46,7 +46,8 @@ class GesDiscDownloader:
                 "NASA_EARTHDATA_TOKEN not found in environment variables. "
                 "Please ensure you have a .env file with your token."
             )
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        self.session = requests.Session()
+        self.session.headers = {"Authorization": f"Bearer {self.token}"}
         # list the available datasets on initialization to reference later
         self.datasets = {ds: GesDiscDataset(ds) for ds in self.list_datasets()}
 
@@ -56,7 +57,7 @@ class GesDiscDownloader:
         https://oco2.gesdisc.eosdis.nasa.gov/opendap/
 
         Args:
-            url: The URL of the directory on the OpenDAP portal
+            url (str): The URL of the directory on the OpenDAP portal
 
         Returns:
             list[str]: List of the contents of the directory in OpenDAP
@@ -65,7 +66,7 @@ class GesDiscDownloader:
             requests.exceptions.RequestException: If the directory listing fails
         """
         try:
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.session.headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             print(f"Error accessing GES DISC directory: {str(e)}")
@@ -146,7 +147,7 @@ class GesDiscDownloader:
         List the beginning and end times of available products for a given dataset.
 
         Arguments:
-            dataset: The name of a dataset on the OCO-2/3 GES DISC OpenDAP portal
+            dataset (str): The name of a dataset on the OCO-2/3 GES DISC OpenDAP portal
 
         Returns:
             tuple[datetime, datetime]: A tuple of datetime objects with the beginning
@@ -194,6 +195,21 @@ class GesDiscDownloader:
         return (earliest_date, latest_date)
 
     def get_granule_by_date(self, dataset: str, date: datetime):
+        """
+        Get a pointer to the data from a given day for a dataset. Currently only daily
+        datasets are supported.
+
+        Arguments:
+            dataset (str): The name of a dataset on the OCO-2/3 GES DISC OpenDAP portal
+            date (datetime): The requested date of the data
+
+        Returns:
+            DatasetType: A pydap Dataset containing access to the variables in the netCDF
+
+        Raises:
+            FileNotFoundError: No data is available for the requested day in the dataset
+            ValueError: If the dataset does not exist
+        """
         if dataset not in self.datasets.keys():
             raise ValueError(
                 f"{dataset} is not a dataset available on OCO-2/3 GES DISC"
@@ -238,7 +254,7 @@ class GesDiscDownloader:
         # Remove .html from link to reference .nc4 data directly, which is the format
         # pydap expects
         pydap_url = target_granule.rstrip(".html")
-        return open_url(pydap_url)
+        return open_url(pydap_url, session=self.session)
 
 
 if __name__ == "__main__":
@@ -252,4 +268,4 @@ if __name__ == "__main__":
         f"{dataset} has time range {timerange[0].strftime('%Y-%m-%d')} to {timerange[1].strftime('%Y-%m-%d')}"
     )
     granule = dl.get_granule_by_date(dataset, datetime(2019, 12, 1))
-    print(granule)
+    print(granule["Latitude"].data[:])
