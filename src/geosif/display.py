@@ -11,6 +11,8 @@ def plot_samples(
     lon: npt.NDArray[np.float64],
     cmap: str = "viridis",
     point_size: int = 20,
+    vmin: float | None = None,
+    vmax: float | None = None,
     title: str | None = None,
     label: str | None = None,
 ) -> None:
@@ -24,6 +26,8 @@ def plot_samples(
         lon (np.ndarray): 1D array of longitude values (in degrees)
         cmap (str): Matplotlib colormap for the sample values, default is viridis
         point_size (int): Marker size for the scatter plot
+        vmin (float): Lower bound for the colormap. Defaults to None (automatic)
+        vmax (float): Upper bound for the colormap. Defaults to None (automatic)
         title (str): Optionally provide a title for the plot
         label (str): Optionally provide a name and unit for the sample quantities
 
@@ -50,7 +54,14 @@ def plot_samples(
 
     # Plot the data as a scatter plot
     scatter = ax.scatter(
-        lon, lat, c=samples, cmap=cmap, s=point_size, transform=ccrs.PlateCarree()
+        lon,
+        lat,
+        c=samples,
+        cmap=cmap,
+        s=point_size,
+        vmin=vmin,
+        vmax=vmax,
+        transform=ccrs.PlateCarree(),
     )
 
     cbar = plt.colorbar(
