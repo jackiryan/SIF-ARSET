@@ -2,6 +2,7 @@
 data/
 # cache db file for url requests
 gesdisc_cache.sqlite
+pydap-cache/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

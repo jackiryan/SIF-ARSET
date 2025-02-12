@@ -6,10 +6,15 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 from pydap.client import open_url
+import pydap.lib
 import re
 import requests
 import requests_cache
 from urllib.parse import urljoin
+from urllib3.util.retry import Retry
+
+os.makedirs("pydap-cache", exist_ok=True)
+pydap.lib.CACHE = "pydap-cache/"
 
 
 def year_doy_to_datetime(year: int, doy: int) -> datetime:
@@ -34,10 +39,33 @@ class GesDiscDataset:
     daily: bool = False
 
 
+def create_retry_session(
+    token: str, retries: int = 5, backoff_factor: float = 1.0
+) -> requests.Session:
+    session = requests.Session()
+    session.headers = {"Authorization": f"Bearer {token}"}
+
+    retry_strategy = Retry(
+        total=retries,
+        status_forcelist=[503],
+        allowed_methods=["HEAD", "GET", "OPTIONS"],
+        backoff_factor=backoff_factor,
+        raise_on_status=False,  # So that the adapter retries instead of raising immediately
+    )
+    adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    return session
+
+
 class GesDiscDownloader:
 
     # While this URL references OCO-2, it also contains OCO-3 datasets
     oco2_gesdisc_url = "https://oco2.gesdisc.eosdis.nasa.gov/opendap/"
+    # OpenDAP is basically broken as far as I can tell, and does not allow downloads
+    # Use the direct data portal as a backup until this is fixed.
+    gesdisc_download_url = "https://oco2.gesdisc.eosdis.nasa.gov/data/"
     year_pattern = re.compile(r"/(\d{4})/contents\.html$")
     doy_pattern = re.compile(r"/(\d{3})/contents\.html$")
     nc4_pattern = re.compile(r"/([^/]*?)_(\d{6})_.*?\.nc4\.html$")
@@ -50,7 +78,7 @@ class GesDiscDownloader:
                 "NASA_EARTHDATA_TOKEN not found in environment variables. "
                 "Please ensure you have a .env file with your token."
             )
-        self.session = requests.Session()
+        self.session = create_retry_session(self.token)
         self.session.headers = {"Authorization": f"Bearer {self.token}"}
 
         # cache responses in an SQLite database with a TTL of 300 seconds (5 minutes)
@@ -307,6 +335,19 @@ class GesDiscDownloader:
         granule_url = self._get_granule_url_by_date(dataset, date)
         return open_url(granule_url, session=self.session)
 
+    def _opendap_to_archive_url(self, dataset: str, url: str) -> str:
+        # Rough heuristic for figuring out which archive directory to filter to
+        if dataset.startswith("OCO2"):
+            data_dir = "OCO2_DATA"
+        else:
+            data_dir = "OCO3_DATA"
+        # Assumes product is daily (no doy dirs)
+        year = url.split("/")[-2]
+        filename = url.split("/")[-1]
+        return urljoin(
+            self.gesdisc_download_url, f"{data_dir}/{dataset}/{year}/{filename}"
+        )
+
     def _download_file(self, url: str, outpath: Path) -> Path:
         """
         Internal helper to download a single file from a URL into the specified directory.
@@ -368,7 +409,9 @@ class GesDiscDownloader:
         for d in dates:
             try:
                 url, size = self._get_granule_url_by_date(dataset, d)
-                granule_urls.append((d, url))
+                # Hacky workaround for not being able to download via OpenDAP
+                dl_url = self._opendap_to_archive_url(dataset, url)
+                granule_urls.append((d, dl_url))
                 total_size += size
             except Exception as e:
                 print(f"Skipping {d.strftime('%Y-%m-%d')}: {e}")
