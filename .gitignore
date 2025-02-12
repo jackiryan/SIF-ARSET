@@ -1,5 +1,8 @@
 *.nc4
 data/
+# cache db file for url requests
+gesdisc_cache.sqlite
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

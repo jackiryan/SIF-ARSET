@@ -1,11 +1,15 @@
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
+from pathlib import Path
 from pydap.client import open_url
 import re
 import requests
+import requests_cache
+from urllib.parse import urljoin
 
 
 def year_doy_to_datetime(year: int, doy: int) -> datetime:
@@ -39,7 +43,7 @@ class GesDiscDownloader:
     nc4_pattern = re.compile(r"/([^/]*?)_(\d{6})_.*?\.nc4\.html$")
 
     def __init__(self):
-        self.token = load_dotenv()
+        load_dotenv()
         self.token = os.getenv("NASA_EARTHDATA_TOKEN")
         if not self.token:
             raise ValueError(
@@ -48,6 +52,12 @@ class GesDiscDownloader:
             )
         self.session = requests.Session()
         self.session.headers = {"Authorization": f"Bearer {self.token}"}
+
+        # cache responses in an SQLite database with a TTL of 300 seconds (5 minutes)
+        requests_cache.install_cache(
+            "gesdisc_cache", backend="sqlite", expire_after=300
+        )
+
         # list the available datasets on initialization to reference later
         self.datasets = {ds: GesDiscDataset(ds) for ds in self.list_datasets()}
 
@@ -89,8 +99,8 @@ class GesDiscDownloader:
             elif href.startswith("https://") or href.startswith("http://"):
                 content_url = href
             else:
-                # href is a relative URL, so append the parent URL
-                content_url = url + href
+                # href is a relative URL, so prepend the parent URL
+                content_url = urljoin(url, href)
             contents.append(content_url)
 
         return contents
@@ -137,7 +147,7 @@ class GesDiscDownloader:
             date_objects = [datetime.strptime(date, "%y%m%d") for date in available_nc4]
             is_daily = True
         else:
-            return (datetime(), False)
+            return (datetime.fromtimestamp(0), False)
 
         date_extreme = min(date_objects) if find_min else max(date_objects)
         return (date_extreme, is_daily)
@@ -168,14 +178,16 @@ class GesDiscDownloader:
         # directory, but should be okay as long as OpenDAP format is stable
 
         available_years = {
-            int(self.year_pattern.search(link).group(1)): link.rstrip("contents.html")
+            int(self.year_pattern.search(link).group(1)): link.replace(
+                "contents.html", ""
+            )
             for link in dir_contents
             if self.year_pattern.search(link)
         }
 
         if not available_years:
             print(f"Dataset {dataset} is doc-only or had no available products.")
-            return (datetime(), datetime())
+            return (datetime.fromtimestamp(0), datetime.fromtimestamp(0))
 
         # Now search through the highest and lowest year directory to find the begin
         # and end dates.
@@ -194,6 +206,56 @@ class GesDiscDownloader:
 
         return (earliest_date, latest_date)
 
+    def _check_inputs(self, dataset: str) -> None:
+        """Helper function to perform initial checks on queries arriving from Jupyter notebooks."""
+        if dataset not in self.datasets.keys():
+            raise ValueError(
+                f"{dataset} is not a dataset available on OCO-2/3 GES DISC"
+            )
+
+        # As a side effect, adds this dataset's timerange to the cached time ranges
+        # stored in this class.
+        if (
+            self.datasets[dataset].startdate is None
+            or self.datasets[dataset].enddate is None
+        ):
+            print(f"Checking available dates on GES DISC for {dataset}")
+            self.get_dataset_timerange(dataset)
+
+        if not self.datasets[dataset].daily:
+            raise NotImplementedError("subdaily datasets not implemented")
+
+    def _get_granule_url_by_date(self, dataset: str, date: datetime) -> str:
+        """
+        Internal helper to get the direct URL for a granule on a given date.
+        Instead of returning a pydap dataset, it returns the URL to the file.
+        """
+        # Assume all pre-checks on arguments have been done by the caller, this
+        # function is "private"
+        year_url = f"{self.oco2_gesdisc_url}{dataset}/{date.year}/"
+        year_contents = self.list_directory(year_url)
+        granules: dict[datetime, str] = {}
+        for link in year_contents:
+            match = self.nc4_pattern.search(link)
+            if match:
+                # Parse the date from the filename and use only the date part.
+                granule_date = datetime.strptime(match.group(2), "%y%m%d")
+                granules[granule_date] = link
+
+        target_granule = granules.get(date)
+        if target_granule is None:
+            raise FileNotFoundError(
+                f"No {dataset} granule found for {date.strftime('%Y-%m-%d')}"
+            )
+
+        # Remove the ".html" suffix to get the raw netCDF (.nc4) URL.
+        granule_url = (
+            target_granule[: -len(".html")]
+            if target_granule.endswith(".html")
+            else target_granule
+        )
+        return granule_url
+
     def get_granule_by_date(self, dataset: str, date: datetime):
         """
         Get a pointer to the data from a given day for a dataset. Currently only daily
@@ -210,17 +272,8 @@ class GesDiscDownloader:
             FileNotFoundError: No data is available for the requested day in the dataset
             ValueError: If the dataset does not exist
         """
-        if dataset not in self.datasets.keys():
-            raise ValueError(
-                f"{dataset} is not a dataset available on OCO-2/3 GES DISC"
-            )
-
-        if (
-            self.datasets[dataset].startdate is None
-            or self.datasets[dataset].enddate is None
-        ):
-            print(f"Checking available dates on GES DISC for {dataset}")
-            self.get_dataset_timerange(dataset)
+        # Will raise an error if there is an issue with the requested query
+        self._check_inputs(dataset)
 
         if (
             date < self.datasets[dataset].startdate
@@ -233,28 +286,118 @@ class GesDiscDownloader:
                 f"\nAvailable dates: {startdate_str} to {enddate_str}",
             )
 
-        if self.datasets[dataset].daily == False:
-            raise NotImplementedError("subdaily datasets not implemented")
+        granule_url = self._get_granule_url_by_date(dataset, date)
+        return open_url(granule_url, session=self.session)
 
-        year_url = f"{self.oco2_gesdisc_url}{dataset}/{date.year}/"
-        year_contents = self.list_directory(year_url)
-        granules = {
-            datetime.strptime(
-                str(self.nc4_pattern.search(link).group(2)), "%y%m%d"
-            ): link
-            for link in year_contents
-            if self.nc4_pattern.search(link)
-        }
-        target_granule = granules.get(date)
-        if target_granule is None:
-            raise FileNotFoundError(
-                f"No {dataset} granule found for {date.strftime('%Y-%m-%d')}"
-            )
+    def _download_file(self, url: str, outpath: Path) -> Path:
+        """
+        Internal helper to download a single file from a URL into the specified directory.
+        Returns the Path to the downloaded file.
+        """
+        filename = url.split("/")[-1]
+        file_path = outpath / filename
+        try:
+            with self.session.get(url, stream=True) as r:
+                r.raise_for_status()
+                with open(file_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+        except Exception as e:
+            raise RuntimeError(f"Failed to download {url}: {e}") from e
+        return file_path
 
-        # Remove .html from link to reference .nc4 data directly, which is the format
-        # pydap expects
-        pydap_url = target_granule.rstrip(".html")
-        return open_url(pydap_url, session=self.session)
+    def download_timerange(
+        self,
+        dataset: str,
+        start_date: datetime,
+        end_date: datetime,
+        outpath: Path,
+        parallel: bool = True,
+    ) -> list[Path]:
+        """
+        Download a set of granules from a time range of dates, using multithreading by default.
+
+        Arguments:
+            dataset (str): The name of a dataset on the OCO-2/3 GES DISC OpenDAP portal
+            start_date (datetime): The requested start date of the dataset
+            end_date (datetime): The requested end date of the dataset
+            outpath (Path): Directory to store the output files. It will be created if it does not exist.
+            parallel (bool): Download files in parallel. Default behavior is True.
+
+        Returns:
+            list[Path]: A list of pathlib.Path objects referring to each file that was downloaded.
+
+        Raises:
+            ValueError: If the dataset does not exist
+        """
+        # Will raise an error if there is an issue with the requested query
+        self._check_inputs(dataset)
+
+        # Create the output directory if it does not exist.
+        outpath.mkdir(parents=True, exist_ok=True)
+
+        # Generate a list of dates (daily) from start_date to end_date inclusive.
+        current_date = start_date
+        dates: list[datetime] = []
+        while current_date <= end_date:
+            dates.append(current_date)
+            current_date += timedelta(days=1)
+
+        # The tuples are (date, granule_url)
+        granule_urls: list[tuple[datetime, str]] = []
+        total_size = 0  # in bytes
+
+        for d in dates:
+            try:
+                url = self._get_granule_url_by_date(dataset, d)
+                granule_urls.append((d, url))
+                # Issue a HEAD request to get the file size.
+                # TO DO: find an alternative as this returns 405
+                head_resp = self.session.head(url)
+                head_resp.raise_for_status()
+                size = int(head_resp.headers.get("Content-Length", 0))
+                total_size += size
+            except Exception as e:
+                print(f"Skipping {d.strftime('%Y-%m-%d')}: {e}")
+
+        if not granule_urls:
+            print("No granules found in the specified date range.")
+            return []
+
+        total_mb = total_size / (1024 * 1024)
+        print(
+            f"After this operation, {int(total_mb)} MB of additional disk space will be used."
+        )
+        confirm = input("Do you want to continue? (y/N): ")
+        if confirm.lower() not in ("y", "yes"):
+            print("Download cancelled.")
+            return []
+
+        downloaded_files: list[Path] = []
+
+        def download_task(url: str) -> Path:
+            return self._download_file(url, outpath)
+
+        if parallel:
+            with ThreadPoolExecutor() as executor:
+                futures = {
+                    executor.submit(download_task, url): url for _, url in granule_urls
+                }
+                for future in as_completed(futures):
+                    try:
+                        file_path = future.result()
+                        downloaded_files.append(file_path)
+                    except Exception as e:
+                        print(f"Failed to download a file: {e}")
+        else:
+            for _, url in granule_urls:
+                try:
+                    file_path = download_task(url)
+                    downloaded_files.append(file_path)
+                except Exception as e:
+                    print(f"Failed to download {url}: {e}")
+
+        return downloaded_files
 
 
 if __name__ == "__main__":
@@ -262,6 +405,7 @@ if __name__ == "__main__":
     dl = GesDiscDownloader()
     # dataset = "OCO2_L2_CO2Prior.10r"
     dataset = "OCO3_L2_Lite_SIF.11r"
+    """
     print(f"Getting time range for {dataset} data...")
     timerange = dl.get_dataset_timerange(dataset)
     print(
@@ -269,3 +413,13 @@ if __name__ == "__main__":
     )
     granule = dl.get_granule_by_date(dataset, datetime(2019, 12, 1))
     print(granule["Latitude"].data[:])
+    """
+    downloaded = dl.download_timerange(
+        dataset,
+        datetime(2019, 12, 1),
+        datetime(2019, 12, 10),
+        outpath=Path("/Users/jryan/Documents/granules"),
+    )
+    print("Downloaded files:")
+    for f in downloaded:
+        print(f)

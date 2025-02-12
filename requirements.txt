@@ -8,3 +8,4 @@ numpy
 pydap
 python-dotenv
 requests
+requests-cache
