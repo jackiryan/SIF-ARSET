@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -61,7 +61,7 @@ class GesDiscDownloader:
         # list the available datasets on initialization to reference later
         self.datasets = {ds: GesDiscDataset(ds) for ds in self.list_datasets()}
 
-    def list_directory(self, url: str) -> list[str]:
+    def list_directory(self, url: str) -> tuple[list[str], list[int]]:
         """
         List the contents of a directory URL on an OpenDAP portal, e.g.,
         https://oco2.gesdisc.eosdis.nasa.gov/opendap/
@@ -70,13 +70,15 @@ class GesDiscDownloader:
             url (str): The URL of the directory on the OpenDAP portal
 
         Returns:
+            A tuple of:
             list[str]: List of the contents of the directory in OpenDAP
+            list[int]: List of the sizes (in bytes) of the files in the directory
 
         Raises:
             requests.exceptions.RequestException: If the directory listing fails
         """
         try:
-            response = requests.get(url, headers=self.session.headers)
+            response = self.session.get(url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             print(f"Error accessing GES DISC directory: {str(e)}")
@@ -84,26 +86,39 @@ class GesDiscDownloader:
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # OpenDAP directories use a table element to hold the contents of a
-        # directory, so return an empty list if one is not found
-        dir_table = soup.find("table")
-        if not dir_table:
-            return []
+        # OpenDAP directories use table rows to denote contents
+        # Directory tables have a DataCatalog itemtype, files have a Dataset itemtype
+        table = soup.find("table", itemtype="http://schema.org/DataCatalog")
+        if type(table) != Tag:
+            return ([], [])
 
         contents: list[str] = []
-        for link in dir_table.find_all("a"):
-            href = str(link.get("href"))
-            # First element is self-referential, skip it
-            if href == "#":
+        filesizes: list[int] = []
+        for row in table.find_all_next("tr"):
+            if type(row) != Tag:
                 continue
-            elif href.startswith("https://") or href.startswith("http://"):
+            tds = row.find_all("td")
+            if len(tds) < 3:
+                continue  # not enough columns
+            # First column contains the filename
+            link: Tag = tds[0].find("a")
+            if not link:
+                continue
+            href = str(link.get("href"))
+            if href.startswith("http://") or href.startswith("https://"):
                 content_url = href
             else:
                 # href is a relative URL, so prepend the parent URL
                 content_url = urljoin(url, href)
             contents.append(content_url)
 
-        return contents
+            # Third column has the filename
+            if row.attrs.get("itemtype") == "http://schema.org/Dataset":
+                filesizes.append(int(tds[2].get_text(strip=True)))
+            else:
+                filesizes.append(0)
+
+        return (contents, filesizes)
 
     def list_datasets(self) -> list[str]:
         """
@@ -115,7 +130,7 @@ class GesDiscDownloader:
         Raises:
             requests.exceptions.RequestException: If the directory listing fails
         """
-        dataset_urls = self.list_directory(self.oco2_gesdisc_url)
+        dataset_urls, _ = self.list_directory(self.oco2_gesdisc_url)
         datasets = [
             ds.split("/")[-2] for ds in dataset_urls if ds.split("/")[-2] != "test"
         ]
@@ -127,19 +142,22 @@ class GesDiscDownloader:
         # Year directories for a dataset will either be DOY directories or a flat
         # directory of netCDF files and metadata
 
-        year_contents = self.list_directory(year_url)
-        available_doy = [
-            int(self.doy_pattern.search(link).group(1))
-            for link in year_contents
-            if self.doy_pattern.search(link)
-        ]
-        # actually a list of date strings in the format YYMMDD parsed from the
+        year_contents, _ = self.list_directory(year_url)
+        available_doy: list[int] = []
+        for link in year_contents:
+            match = self.doy_pattern.search(link)
+            if match:
+                # Shouldn't cause TypeError due to the regex
+                available_doy.append(int(match.group(1)))
+
+        # a list of date strings in the format YYMMDD parsed from the
         # filename in the link
-        available_nc4 = [
-            str(self.nc4_pattern.search(link).group(2))
-            for link in year_contents
-            if self.nc4_pattern.search(link)
-        ]
+        available_nc4: list[str] = []
+        for link in year_contents:
+            match = self.nc4_pattern.search(link)
+            if match:
+                available_nc4.append(str(match.group(2)))
+
         if len(available_doy) > 0:
             date_objects = [year_doy_to_datetime(year, doy) for doy in available_doy]
             is_daily = False
@@ -172,18 +190,16 @@ class GesDiscDownloader:
             )
 
         dataset_url = f"{self.oco2_gesdisc_url}{dataset}/"
-        dir_contents = self.list_directory(dataset_url)
+        dir_contents, _ = self.list_directory(dataset_url)
 
         # Brittle way of checking that a link in an OpenDAP directory points to a
         # directory, but should be okay as long as OpenDAP format is stable
 
-        available_years = {
-            int(self.year_pattern.search(link).group(1)): link.replace(
-                "contents.html", ""
-            )
-            for link in dir_contents
-            if self.year_pattern.search(link)
-        }
+        available_years: dict[int, str] = {}
+        for link in dir_contents:
+            match = self.year_pattern.search(link)
+            if match:
+                available_years[int(match.group(1))] = link.replace("contents.html", "")
 
         if not available_years:
             print(f"Dataset {dataset} is doc-only or had no available products.")
@@ -225,36 +241,38 @@ class GesDiscDownloader:
         if not self.datasets[dataset].daily:
             raise NotImplementedError("subdaily datasets not implemented")
 
-    def _get_granule_url_by_date(self, dataset: str, date: datetime) -> str:
+    def _get_granule_url_by_date(self, dataset: str, date: datetime) -> tuple[str, int]:
         """
         Internal helper to get the direct URL for a granule on a given date.
-        Instead of returning a pydap dataset, it returns the URL to the file.
+        Instead of returning a pydap dataset, it returns a tuple of the URL
+        to the file and the size of the file in bytes.
         """
         # Assume all pre-checks on arguments have been done by the caller, this
         # function is "private"
         year_url = f"{self.oco2_gesdisc_url}{dataset}/{date.year}/"
-        year_contents = self.list_directory(year_url)
-        granules: dict[datetime, str] = {}
-        for link in year_contents:
+        year_contents, file_sizes = self.list_directory(year_url)
+        granules: dict[datetime, tuple[str, int]] = {}
+        for link, size in zip(year_contents, file_sizes):
             match = self.nc4_pattern.search(link)
             if match:
                 # Parse the date from the filename and use only the date part.
                 granule_date = datetime.strptime(match.group(2), "%y%m%d")
-                granules[granule_date] = link
+                granules[granule_date] = (link, size)
 
-        target_granule = granules.get(date)
-        if target_granule is None:
+        granule_info = granules.get(date)
+        if granule_info is None:
             raise FileNotFoundError(
                 f"No {dataset} granule found for {date.strftime('%Y-%m-%d')}"
             )
 
+        target_granule, granule_size = granule_info
         # Remove the ".html" suffix to get the raw netCDF (.nc4) URL.
         granule_url = (
             target_granule[: -len(".html")]
             if target_granule.endswith(".html")
             else target_granule
         )
-        return granule_url
+        return (granule_url, granule_size)
 
     def get_granule_by_date(self, dataset: str, date: datetime):
         """
@@ -349,13 +367,8 @@ class GesDiscDownloader:
 
         for d in dates:
             try:
-                url = self._get_granule_url_by_date(dataset, d)
+                url, size = self._get_granule_url_by_date(dataset, d)
                 granule_urls.append((d, url))
-                # Issue a HEAD request to get the file size.
-                # TO DO: find an alternative as this returns 405
-                head_resp = self.session.head(url)
-                head_resp.raise_for_status()
-                size = int(head_resp.headers.get("Content-Length", 0))
                 total_size += size
             except Exception as e:
                 print(f"Skipping {d.strftime('%Y-%m-%d')}: {e}")
