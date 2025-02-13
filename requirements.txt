@@ -3,9 +3,11 @@ cartopy
 ipykernel
 jupyter
 matplotlib
+netcdf4
 notebook
 numpy
-pydap
 python-dotenv
 requests
 requests-cache
+tqdm
+xarray

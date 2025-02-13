@@ -10,8 +10,10 @@ import pydap.lib
 import re
 import requests
 import requests_cache
-from urllib.parse import urljoin
+from tqdm.notebook import tqdm
+from urllib.parse import urljoin, urlparse
 from urllib3.util.retry import Retry
+import xarray as xr
 
 os.makedirs("pydap-cache", exist_ok=True)
 pydap.lib.CACHE = "pydap-cache/"
@@ -269,7 +271,7 @@ class GesDiscDownloader:
         if not self.datasets[dataset].daily:
             raise NotImplementedError("subdaily datasets not implemented")
 
-    def _get_granule_url_by_date(self, dataset: str, date: datetime) -> tuple[str, int]:
+    def _get_granule_url_by_date(self, dataset: str, date: datetime) -> str:
         """
         Internal helper to get the direct URL for a granule on a given date.
         Instead of returning a pydap dataset, it returns a tuple of the URL
@@ -293,14 +295,14 @@ class GesDiscDownloader:
                 f"No {dataset} granule found for {date.strftime('%Y-%m-%d')}"
             )
 
-        target_granule, granule_size = granule_info
+        target_granule, _ = granule_info
         # Remove the ".html" suffix to get the raw netCDF (.nc4) URL.
         granule_url = (
             target_granule[: -len(".html")]
             if target_granule.endswith(".html")
             else target_granule
         )
-        return (granule_url, granule_size)
+        return granule_url
 
     def get_granule_by_date(self, dataset: str, date: datetime):
         """
@@ -353,8 +355,12 @@ class GesDiscDownloader:
         Internal helper to download a single file from a URL into the specified directory.
         Returns the Path to the downloaded file.
         """
-        filename = url.split("/")[-1]
+        filename = os.path.basename(urlparse(url).path)
         file_path = outpath / filename
+        if file_path.exists():
+            # Skip downloading if the file exists
+            print(f"Skipping {file_path}, already downloaded...")
+            return file_path
         try:
             with self.session.get(url, stream=True) as r:
                 r.raise_for_status()
@@ -365,12 +371,18 @@ class GesDiscDownloader:
             raise RuntimeError(f"Failed to download {url}: {e}") from e
         return file_path
 
+    def _download_netcdf(self, url: str, outpath: Path) -> Path:
+        filename = os.path.basename(urlparse(url).path)
+        file_path = outpath / filename
+        pydap_ds = open_url(url, session=self.session)
+        return file_path
+
     def download_timerange(
         self,
         dataset: str,
         start_date: datetime,
         end_date: datetime,
-        outpath: Path,
+        outpath: str | Path,
         parallel: bool = True,
     ) -> list[Path]:
         """
@@ -393,6 +405,8 @@ class GesDiscDownloader:
         self._check_inputs(dataset)
 
         # Create the output directory if it does not exist.
+        if type(outpath) == str:
+            outpath = Path(outpath).resolve()
         outpath.mkdir(parents=True, exist_ok=True)
 
         # Generate a list of dates (daily) from start_date to end_date inclusive.
@@ -401,20 +415,33 @@ class GesDiscDownloader:
         while current_date <= end_date:
             dates.append(current_date)
             current_date += timedelta(days=1)
+        dates_by_year: dict[int, list[datetime]] = {}
+        for d in dates:
+            dates_by_year.setdefault(d.year, []).append(d)
 
         # The tuples are (date, granule_url)
         granule_urls: list[tuple[datetime, str]] = []
         total_size = 0  # in bytes
 
-        for d in dates:
+        for year, date_list in dates_by_year.items():
+            year_dir = f"{self.oco2_gesdisc_url}{dataset}/{year}/"
             try:
-                url, size = self._get_granule_url_by_date(dataset, d)
-                # Hacky workaround for not being able to download via OpenDAP
-                dl_url = self._opendap_to_archive_url(dataset, url)
-                granule_urls.append((d, dl_url))
-                total_size += size
+                directory_urls, file_sizes = self.list_directory(year_dir)
             except Exception as e:
-                print(f"Skipping {d.strftime('%Y-%m-%d')}: {e}")
+                print(f"Error fetching directory for year {year}: {e}")
+                continue
+
+            for url, size in zip(directory_urls, file_sizes):
+                match = self.nc4_pattern.search(url)
+                if match:
+                    date = datetime.strptime(match.group(2), "%y%m%d")
+                    if date in date_list:
+                        opendap_url = (
+                            url[: -len(".html")] if url.endswith(".html") else url
+                        )
+                        archive_url = self._opendap_to_archive_url(dataset, opendap_url)
+                        granule_urls.append((date, archive_url))
+                        total_size += size
 
         if not granule_urls:
             print("No granules found in the specified date range.")
@@ -439,10 +466,11 @@ class GesDiscDownloader:
                 futures = {
                     executor.submit(download_task, url): url for _, url in granule_urls
                 }
-                for future in as_completed(futures):
+                for future in tqdm(
+                    as_completed(futures), total=len(futures), desc="Downloading files"
+                ):
                     try:
-                        file_path = future.result()
-                        downloaded_files.append(file_path)
+                        downloaded_files.append(future.result())
                     except Exception as e:
                         print(f"Failed to download a file: {e}")
         else:
@@ -474,7 +502,8 @@ if __name__ == "__main__":
         dataset,
         datetime(2019, 12, 1),
         datetime(2019, 12, 10),
-        outpath=Path("/Users/jryan/Documents/granules"),
+        outpath=Path("data"),
+        parallel=False,
     )
     print("Downloaded files:")
     for f in downloaded:
