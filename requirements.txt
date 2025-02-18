@@ -6,6 +6,7 @@ matplotlib
 netcdf4
 notebook
 numpy
+pydap
 python-dotenv
 requests
 requests-cache
