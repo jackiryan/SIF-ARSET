@@ -98,3 +98,68 @@ def plot_samples(
         ax.set_title(title)
 
     plt.show()
+
+
+def plot_gridded(
+    grid_data: npt.NDArray[np.float32],
+    lon2d: npt.NDArray[np.float32],
+    lat2d: npt.NDArray[np.float32],
+    cmap: str = "viridis",
+    vmin: float | None = None,
+    vmax: float | None = None,
+    title: str | None = None,
+    label: str | None = None,
+) -> None:
+    """
+    Plots 2-D gridded data on a lat/lon coordinate system overlayed on a world map.
+
+    Args:
+        grid_data (np.ndarray): 2D array of sample values
+        lat (np.ndarray): 2D array of latitude values (in degrees)
+        lon (np.ndarray): 2D array of longitude values (in degrees)
+        cmap (str): Matplotlib colormap for the sample values, default is viridis
+        vmin (float): Lower bound for the colormap. Defaults to None (automatic)
+        vmax (float): Upper bound for the colormap. Defaults to None (automatic)
+        title (str): Optionally provide a title for the plot
+        label (str): Optionally provide a name and unit for the sample quantities
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If the data arrays are not all the same length
+    """
+    if not (len(grid_data) == len(lat2d) == len(lon2d)):
+        raise ValueError("samples, lat, and lon must all have the same length.")
+
+    fig = plt.figure(figsize=(12, 6))
+    ax = plt.axes(projection=ccrs.PlateCarree())
+    ax.set_global()
+    ax.coastlines()
+    ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor="black")
+    ax.add_feature(cfeature.LAND, facecolor="lightgray")
+    ax.add_feature(cfeature.OCEAN, facecolor="white")
+    ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
+
+    # Matplotlib pcolormesh displays the gridded data as a pixel-like grid
+    # Note vmax is lower here than in the previous example, SIF can vary seasonally.
+    pcm = ax.pcolormesh(
+        lon2d,
+        lat2d,
+        grid_data,
+        vmin=vmin,
+        vmax=vmax,
+        cmap=cmap,
+        transform=ccrs.PlateCarree(),
+    )
+
+    cbar = plt.colorbar(pcm, ax=ax, orientation="horizontal", pad=0.05, fraction=0.05)
+    if label:
+        cbar.set_label(label)
+    else:
+        cbar.set_label("Sample values")
+
+    if title:
+        plt.title(title)
+
+    plt.show()

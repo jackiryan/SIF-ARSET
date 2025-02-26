@@ -20,6 +20,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+"""
+Code for creating gridded rasters from a time range of L2 granules. This code is based on
+Christian Frankenberg's Julia code here: https://github.com/cfranken/gridding
+
+As I attempted to be faithful to the original code when translating to Python, an idiosyncratic
+aspect of the code is that output arrays are typically passed by reference as a function argument,
+rather than returned from the function. Most functions with a return value of "None" are mutating
+the values of an array as a side effect.
+"""
+
 from datetime import datetime, timedelta
 from netCDF4 import Dataset, date2num, Variable
 import numpy as np
@@ -35,6 +45,17 @@ DatasetType = TypeVar("DatasetType")
 def get_variable_array(
     granule: DatasetType, variable: str, dd: bool = False
 ) -> npt.NDArray[np.float32]:
+    """
+    Retrieve a variable's data from a granule and return it as a numpy array of type float32.
+
+    Arguments:
+        granule (DatasetType): A dataset or netCDF4 object containing the variable.
+        variable (str): The name of the variable to extract.
+        dd (bool): Flag indicating whether to perform a reshape for footprint bounds. Default is False.
+
+    Returns:
+        npt.NDArray[np.float32]: A numpy array of type float32 containing the variable data, reshaped if required.
+    """
     data = np.array(granule[variable].data[:], dtype=np.float32)
     # DD means there is a second index for footprint bounds of dimension 4
     if dd:
@@ -49,9 +70,30 @@ def get_variable_array(
     return data
 
 
-# This function subdivides a line between (lat1,lon1) and (lat2,lon2) into n points,
-# writing the results into points[j, :, :]
-def div_line(lat1, lon1, lat2, lon2, n, points, j):
+def div_line(
+    lat1: float,
+    lon1: float,
+    lat2: float,
+    lon2: float,
+    n: int,
+    points: npt.NDArray[np.float32],
+    j: int,
+) -> None:
+    """
+    Subdivide a line between two geographic coordinates into 'n' points and store the result in the provided array.
+
+    Arguments:
+        lat1 (float): Starting latitude.
+        lon1 (float): Starting longitude.
+        lat2 (float): Ending latitude.
+        lon2 (float): Ending longitude.
+        n (int): Number of subdivisions.
+        points (npt.NDArray[np.float32]): Array to store the computed points.
+        j (int): Index in the first dimension of 'points' where the result should be stored.
+
+    Returns:
+        None
+    """
     dLat = (lat2 - lat1) / (2.0 * n)
     dLon = (lon2 - lon1) / (2.0 * n)
     startLat = lat1 + dLat
@@ -62,7 +104,30 @@ def div_line(lat1, lon1, lat2, lon2, n, points, j):
 
 
 # For the first baseline run: subdivide the line into n points and store in lats and lons
-def div_line2(lat1, lon1, lat2, lon2, n, lats, lons):
+def div_line2(
+    lat1: float,
+    lon1: float,
+    lat2: float,
+    lon2: float,
+    n: int,
+    lats: npt.NDArray[np.float32],
+    lons: npt.NDArray[np.float32],
+) -> None:
+    """
+    Subdivide a line between two geographic coordinates into 'n' points and store the latitude and longitude separately.
+
+    Arguments:
+        lat1 (float): Starting latitude.
+        lon1 (float): Starting longitude.
+        lat2 (float): Ending latitude.
+        lon2 (float): Ending longitude.
+        n (int): Number of subdivisions.
+        lats (npt.NDArray[np.float32]): Array to store computed latitude values.
+        lons (npt.NDArray[np.float32]): Array to store computed longitude values.
+
+    Returns:
+        None
+    """
     dLat = (lat2 - lat1) / (2.0 * n)
     dLon = (lon2 - lon1) / (2.0 * n)
     startLat = lat1 + dLat
@@ -73,7 +138,34 @@ def div_line2(lat1, lon1, lat2, lon2, n, lats, lons):
 
 
 # Divide the polygon edges into grid points using the two subdivided edges
-def get_points(points, vert_lat, vert_lon, n, lats_0, lons_0, lats_1, lons_1):
+def get_points(
+    points: npt.NDArray[np.float32],
+    vert_lat: npt.NDArray[np.float32],
+    vert_lon: npt.NDArray[np.float32],
+    n: int,
+    lats_0: npt.NDArray[np.float32],
+    lons_0: npt.NDArray[np.float32],
+    lats_1: npt.NDArray[np.float32],
+    lons_1: npt.NDArray[np.float32],
+):
+    """
+    Divide polygon edges into grid points using two subdivided edges.
+
+    This function uses two subdivided lines from the polygon's vertices to generate a grid of points across the polygon.
+
+    Arguments:
+        points (npt.NDArray[np.float32]): Array to store the generated grid points.
+        vert_lat (npt.NDArray[np.float32]): Array of vertex latitudes (expected length 4).
+        vert_lon (npt.NDArray[np.float32]): Array of vertex longitudes (expected length 4).
+        n (int): Number of subdivisions for each edge.
+        lats_0 (npt.NDArray[np.float32]): Temporary array to store intermediate latitudes from first edge.
+        lons_0 (npt.NDArray[np.float32]): Temporary array to store intermediate longitudes from first edge.
+        lats_1 (npt.NDArray[np.float32]): Temporary array to store intermediate latitudes from second edge.
+        lons_1 (npt.NDArray[np.float32]): Temporary array to store intermediate longitudes from second edge.
+
+    Returns:
+        None
+    """
     # Note: Julia indexes 1:4; here we assume vert_lat and vert_lon are length-4 arrays.
     div_line2(vert_lat[0], vert_lon[0], vert_lat[1], vert_lon[1], n, lats_0, lons_0)
     div_line2(vert_lat[3], vert_lon[3], vert_lat[2], vert_lon[2], n, lats_1, lons_1)
@@ -82,16 +174,36 @@ def get_points(points, vert_lat, vert_lon, n, lats_0, lons_0, lats_1, lons_1):
 
 
 def favg_all(
-    arr,
-    weight_arr,
-    lat,
-    lon,
-    inp,
-    s,
-    s2,
-    n,
-    points,
-):
+    arr: npt.NDArray[np.float32],
+    weight_arr: npt.NDArray[np.float32],
+    lat: npt.NDArray[np.float32],
+    lon: npt.NDArray[np.float32],
+    inp: npt.NDArray[np.float32],
+    s: int,
+    s2: int,
+    n: int,
+    points: npt.NDArray[np.float32],
+) -> None:
+    """
+    Aggregate and average input data onto a grid, updating the grid and weight arrays.
+
+    This function calculates weighted averages for grid cells based on input data and updates the arrays that hold the
+    accumulated values and weights. It also handles cases where the input data corresponds to a single pixel or spans a region.
+
+    Arguments:
+        arr (npt.NDArray[np.float32]): 3D array representing the grid data.
+        weight_arr (npt.NDArray[np.float32]): 2D array of weights corresponding to the grid.
+        lat (npt.NDArray[np.float32]): 2D array of latitudes (grid indices) for each pixel.
+        lon (npt.NDArray[np.float32]): 2D array of longitudes (grid indices) for each pixel.
+        inp (npt.NDArray[np.float32]): 2D array of input values for each pixel.
+        s (int): Number of valid pixels.
+        s2 (int): Number of variables per pixel.
+        n (int): Grid subdivision factor.
+        points (npt.NDArray[np.float32]): Temporary array used for subdividing pixel bounds.
+
+    Returns:
+        None
+    """
     # Here, lat and lon are assumed to be 2D arrays (one row per pixel) holding grid indices.
     ix = np.zeros(n * n, dtype=np.int32)
     iy = np.zeros(n * n, dtype=np.int32)
@@ -153,7 +265,32 @@ def create_gridded_raster(
     lon_max: float = 180.0,
     lat_res: float = 1.0,
     lon_res: float = 1.0,
-) -> str:
+) -> None:
+    """
+    Create a gridded raster netCDF file from a dataset over a specified date range.
+
+    This function downloads granules for each day within the provided date range, extracts relevant variables,
+    aggregates the data onto a grid based on specified spatial resolution, and writes the resulting gridded data to a netCDF file.
+
+    Arguments:
+        start_date (datetime): The start date for the data extraction.
+        end_date (datetime): The end date for the data extraction.
+        dataset (str): The dataset identifier to be processed.
+        variables (list[str]): A list of variable names to extract from the dataset.
+        out_file (str): Path to the output netCDF file.
+        lat_min (float): Minimum latitude for the output grid. Default is -90.0.
+        lat_max (float): Maximum latitude for the output grid. Default is 90.0.
+        lon_min (float): Minimum longitude for the output grid. Default is -180.0.
+        lon_max (float): Maximum longitude for the output grid. Default is 180.0.
+        lat_res (float): Latitude resolution of the output grid. Default is 1.0.
+        lon_res (float): Longitude resolution of the output grid. Default is 1.0.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If the requested date range is outside the available time range for the dataset.
+    """
     dl = GesDiscDownloader()
 
     dates: list[datetime] = []
