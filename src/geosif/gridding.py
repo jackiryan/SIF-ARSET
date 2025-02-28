@@ -31,9 +31,11 @@ the values of an array as a side effect.
 """
 
 from datetime import datetime, timedelta
+from glob import glob
 from netCDF4 import Dataset, date2num, Variable
 import numpy as np
 import numpy.typing as npt
+import os
 from tqdm.notebook import tqdm
 from typing import TypeVar
 
@@ -43,20 +45,24 @@ DatasetType = TypeVar("DatasetType")
 
 
 def get_variable_array(
-    granule: DatasetType, variable: str, dd: bool = False
+    granule: DatasetType, variable: str, dd: bool = False, pydap: bool = True
 ) -> npt.NDArray[np.float32]:
     """
     Retrieve a variable's data from a granule and return it as a numpy array of type float32.
 
     Arguments:
-        granule (DatasetType): A dataset or netCDF4 object containing the variable.
+        granule (DatasetType): A pydap dataset containing the variable of interest.
         variable (str): The name of the variable to extract.
         dd (bool): Flag indicating whether to perform a reshape for footprint bounds. Default is False.
+        pydap (bool): If False, use syntax for local netCDF data
 
     Returns:
         npt.NDArray[np.float32]: A numpy array of type float32 containing the variable data, reshaped if required.
     """
-    data = np.array(granule[variable].data[:], dtype=np.float32)
+    if pydap:
+        data = np.array(granule[variable].data[:], dtype=np.float32)
+    else:
+        data = np.array(granule[variable][:], dtype=np.float32)
     # DD means there is a second index for footprint bounds of dimension 4
     if dd:
         if data.shape[0] == 4:
@@ -68,6 +74,14 @@ def get_variable_array(
             return reshaped
     # If no reshaping is required, return as is
     return data
+
+
+def get_granule_date(granule: DatasetType, pydap: bool) -> str:
+    """extract the date metadata from an input netCDF."""
+    if pydap:
+        return granule.attributes["HDF5_GLOBAL"]["date_time_coverage"][0].split("T")[0]
+    else:
+        return granule.date_time_coverage[0].split("T")[0]
 
 
 def div_line(
@@ -253,6 +267,211 @@ def favg_all(
                     )
 
 
+def generate_dates(start_date: datetime, end_date: datetime) -> list[datetime]:
+    """
+    Generate a list of dates from start_date to end_date (inclusive).
+
+    Arguments:
+        start_date (datetime): The beginning date.
+        end_date (datetime): The ending date.
+
+    Returns:
+        List[datetime]: List of dates between start_date and end_date.
+    """
+    dates: list[datetime] = []
+    current_date = start_date
+    while current_date <= end_date:
+        dates.append(current_date)
+        current_date += timedelta(days=1)
+    return dates
+
+
+def validate_date_range(
+    dl: GesDiscDownloader, dataset: str, start_date: datetime, end_date: datetime
+) -> None:
+    """
+    Validate that the requested date range is within the available dataset time range
+    when using the pydap client for sourcing data.
+
+    Arguments:
+        dl (GesDiscDownloader): The downloader instance.
+        dataset (str): The dataset identifier.
+        start_date (datetime): The requested start date.
+        end_date (datetime): The requested end date.
+
+    Raises:
+        ValueError: If the requested date range is outside the available time range for the dataset.
+    """
+    data_range = dl.get_dataset_timerange(dataset)
+    if start_date < data_range[0] or end_date > data_range[1]:
+        raise ValueError(
+            f"requested date range ({start_date.strftime('%Y-%m-%d')} to "
+            f"{end_date.strftime('%Y-%m-%d')}) is outside the available time range for {dataset}"
+        )
+
+def validate_local_dir(
+        local_dir: str, dataset: str, start_date: datetime, end_date: datetime
+) -> None:
+    """
+    Validate that the requested granules are available in the specified directory when
+    sourcing data from disk.
+
+    Arguments:
+        local_dir (str): String path of the source granule directory.
+        dataset (str): The dataset identifier, not the same as the one used in the OpenDAP portal.
+        start_date (datetime): The requested start date.
+        end_date (datetime): The requested end date.
+
+    Raises:
+        ValueError: If the requested date range is outside the available time range for the dataset.
+    """
+    assert os.path.exists(local_dir), "input granule directory not found"
+    try:
+        start_granule = get_local_granule(local_dir, dataset, start_date)
+        end_granule = get_local_granule(local_dir, dataset, end_date)
+    except FileNotFoundError:
+        raise ValueError("Either start date or end date granule is not present in provided source directory")
+
+
+def get_local_granule(local_dir: str, dataset: str, d: datetime) -> DatasetType:
+    """
+    Get the full path to a granule in the local directory for the specified date and
+    dataset.
+
+    Arguments:
+        local_dir (str): String path of the source granule directory.
+        dataset (str): The dataset identifier, not the same as the one used in the OpenDAP portal.
+        d (datetime): The requested date.
+    
+    Returns:
+        DatasetType: A netCDF Dataset object.
+
+    Raises:
+        FileNotFoundError: No data is available for the requested day in the dataset
+    """
+    found_files = glob(os.path.join(local_dir, f"{dataset}*{d.strftime('%y%m%d')}*"))
+    if len(found_files) > 0:
+        return Dataset(found_files[0], "r")
+    else:
+        raise FileNotFoundError(f"Unable to find a matching granule for {d.strftime('%y%m%d')}")
+
+
+def process_day_granule(
+    granule: DatasetType,
+    lat_min: float,
+    lat_max: float,
+    lon_min: float,
+    lon_max: float,
+    variables: list[str],
+    lat_vals: npt.NDArray[np.float32],
+    lon_vals: npt.NDArray[np.float32],
+    n_vars: int,
+    points: npt.NDArray[np.float32],
+    mat_data: npt.NDArray[np.float32],
+    mat_data_weights: npt.NDArray[np.float32],
+    pydap: bool = True,
+) -> None:
+    """
+    Process a single granule for a given date and update the grid data arrays.
+
+    This function uses the GesDiscDownloader to retrieve the granule for the given date,
+    extracts necessary variables, and aggregates them onto the grid.
+
+    Arguments:
+        dl (GesDiscDownloader): The downloader instance.
+        dataset (str): Dataset identifier.
+        d (datetime): Date for which the granule is to be processed.
+        lat_min (float): Minimum latitude of the grid.
+        lat_max (float): Maximum latitude of the grid.
+        lon_min (float): Minimum longitude of the grid.
+        lon_max (float): Maximum longitude of the grid.
+        variables (List[str]): List of variable names to process.
+        lat_vals (npt.NDArray[np.float32]): Array of latitude values for the grid.
+        lon_vals (npt.NDArray[np.float32]): Array of longitude values for the grid.
+        n_vars (int): Number of variables.
+        points (npt.NDArray[np.float32]): Temporary array for subdividing pixel bounds.
+        mat_data (npt.NDArray[np.float32]): 3D grid data array to update.
+        mat_data_weights (npt.NDArray[np.float32]): 2D weight array to update.
+        pydap (bool): If True, handle the granule dataset using pydap syntax
+
+    Returns:
+        None
+    """
+    try:
+        g_date = get_granule_date(granule, pydap)
+    except:
+        g_date = "unknown date"
+    try:
+        lat_granule = get_variable_array(granule, "Latitude", pydap=pydap)
+        lon_granule = get_variable_array(granule, "Longitude", pydap=pydap)
+        if np.any(
+            (lat_granule > lat_min)
+            & (lat_granule < lat_max)
+            & (lon_granule > lon_min)
+            & (lon_granule < lon_max)
+        ):
+            if pydap:
+                lat_in_ = get_variable_array(
+                    granule, "Geolocation_footprint_latitude_vertices", dd=True
+                )
+                lon_in_ = get_variable_array(
+                    granule, "Geolocation_footprint_longitude_vertices", dd=True
+                )
+            else:
+                lat_in_ = get_variable_array(
+                    granule.groups["Geolocation"], "footprint_latitude_vertices", dd=True, pydap=pydap
+                )
+                lon_in_ = get_variable_array(
+                    granule.groups["Geolocation"], "footprint_longitude_vertices", dd=True, pydap=pydap
+                )
+            # If the first dimension is 4, transpose the arrays
+            if lat_in_.shape[0] == 4:
+                lat_in_ = lat_in_.T
+                lon_in_ = lon_in_.T
+            # Determine the bounding box per pixel
+            min_lat_in = np.min(lat_in_, axis=1)
+            max_lat_in = np.max(lat_in_, axis=1)
+            min_lon_in = np.min(lon_in_, axis=1)
+            max_lon_in = np.max(lon_in_, axis=1)
+            bool_add = (
+                (min_lat_in > lat_min).astype(int)
+                + (max_lat_in < lat_max).astype(int)
+                + (min_lon_in > lon_min).astype(int)
+                + (max_lon_in < lon_max).astype(int)
+                + (((max_lon_in - min_lon_in) < 50).astype(int))
+            )
+            b_counter = 5
+            idx = np.where(bool_add == b_counter)[0]
+            if idx.size > 0:
+                n_pixels = lat_in_.shape[0]
+                mat_in = np.zeros((n_pixels, n_vars), dtype=np.float32)
+                for col, var in enumerate(variables):
+                    mat_in[:, col] = get_variable_array(granule, var, pydap=pydap)
+                iLat_ = np.floor(
+                    ((lat_in_[idx, :] - lat_min) / (lat_max - lat_min)) * len(lat_vals)
+                ).astype(int)
+                iLon_ = np.floor(
+                    ((lon_in_[idx, :] - lon_min) / (lon_max - lon_min)) * len(lon_vals)
+                ).astype(int)
+                iLat_ = np.clip(iLat_, 0, len(lat_vals) - 1)
+                iLon_ = np.clip(iLon_, 0, len(lon_vals) - 1)
+                s = idx.size
+                s2 = mat_in.shape[1]
+                favg_all(
+                    mat_data,
+                    mat_data_weights,
+                    iLat_,
+                    iLon_,
+                    mat_in[idx, :],
+                    s,
+                    s2,
+                    n_vars,
+                    points,
+                )
+    except Exception as e:
+        print(f"Error adding granule for {g_date} to grid, caught: {e}")
+
+
 def create_gridded_raster(
     start_date: datetime,
     end_date: datetime,
@@ -265,18 +484,20 @@ def create_gridded_raster(
     lon_max: float = 180.0,
     lat_res: float = 1.0,
     lon_res: float = 1.0,
-) -> None:
+    local_dir: str | None = None
+) -> str:
     """
     Create a gridded raster netCDF file from a dataset over a specified date range.
 
-    This function downloads granules for each day within the provided date range, extracts relevant variables,
-    aggregates the data onto a grid based on specified spatial resolution, and writes the resulting gridded data to a netCDF file.
+    This function sets up the output grid and netCDF file, validates the date range,
+    and then, for each day in the range, accesses the dataset using GesDiscDownloader,
+    processes the granule, aggregates data onto the grid, and writes the results to file.
 
     Arguments:
         start_date (datetime): The start date for the data extraction.
         end_date (datetime): The end date for the data extraction.
         dataset (str): The dataset identifier to be processed.
-        variables (list[str]): A list of variable names to extract from the dataset.
+        variables (List[str]): A list of variable names to extract from the dataset.
         out_file (str): Path to the output netCDF file.
         lat_min (float): Minimum latitude for the output grid. Default is -90.0.
         lat_max (float): Maximum latitude for the output grid. Default is 90.0.
@@ -284,32 +505,26 @@ def create_gridded_raster(
         lon_max (float): Maximum longitude for the output grid. Default is 180.0.
         lat_res (float): Latitude resolution of the output grid. Default is 1.0.
         lon_res (float): Longitude resolution of the output grid. Default is 1.0.
+        local_dir (str | None): If specified, use a local directory to source input
+            granules instead of progressively downloading using pydap. This will also
+            enable parallel processing.
 
     Returns:
-        None
+        str: The path to the output netCDF file.
 
     Raises:
         ValueError: If the requested date range is outside the available time range for the dataset.
     """
-    dl = GesDiscDownloader()
+    dates = generate_dates(start_date, end_date)
 
-    dates: list[datetime] = []
-    current_date = start_date
-    while current_date <= end_date:
-        dates.append(current_date)
-        current_date += timedelta(days=1)
+    if local_dir is None:
+        dl = GesDiscDownloader()
+        validate_date_range(dl, dataset, start_date, end_date)
+    else: 
+        validate_local_dir(local_dir, dataset, start_date, end_date)
 
-    data_range = dl.get_dataset_timerange(dataset)
-    if start_date < data_range[0] or end_date > data_range[1]:
-        raise ValueError(
-            f"requested date range ({start_date.strftime('%Y-%m-%d')} to"
-            f"{end_date.strftime('%Y-%m-%d')}) is outside the available "
-            f"time range for {dataset}"
-        )
-
-    n_time = len(dates)  # number of time slices
+    n_time = len(dates)
     eps = lat_res / 100.0
-
     lat_vals = np.arange(
         lat_min + lat_res / 2.0,
         lat_max - lat_res / 2.0 + eps,
@@ -372,113 +587,66 @@ def create_gridded_raster(
     points = np.zeros((n_grid, n_grid, 2), dtype=np.float32)
 
     n_vars = len(variables)
-    mat_data = np.zeros((len(lon_vals), len(lat_vals), n_vars), dtype=np.float32)
-    mat_data_weights = np.zeros((len(lon_vals), len(lat_vals)), dtype=np.float32)
+    mat_data = np.zeros(
+        (len(lon_vals), len(lat_vals), n_vars), dtype=np.float32
+    )
+    mat_data_weights = np.zeros(
+        (len(lon_vals), len(lat_vals)), dtype=np.float32
+    )
 
     for t_ndx, d in enumerate(tqdm(dates, desc="Time slices")):
-        print(f"Gridding {d.strftime('%Y-%m-%d')} ({t_ndx + 1}/{n_time})")
-
+        
         try:
-            # Get a pydap client connection to the granule for this day
-            granule = dl.get_granule_by_date(dataset, d)
-            lat_granule = get_variable_array(granule, "Latitude")
-            lon_granule = get_variable_array(granule, "Longitude")
-            if np.any(
-                (lat_granule > lat_min)
-                & (lat_granule < lat_max)
-                & (lon_granule > lon_min)
-                & (lon_granule < lon_max)
-            ):
-                lat_in_ = get_variable_array(
-                    granule, "Geolocation_footprint_latitude_vertices", dd=True
-                )
-                lon_in_ = get_variable_array(
-                    granule, "Geolocation_footprint_longitude_vertices", dd=True
-                )
-                # If the first dimension is 4, transpose the arrays
-                if lat_in_.shape[0] == 4:
-                    lat_in_ = lat_in_.T
-                    lon_in_ = lon_in_.T
-                # Determine the bounding box per pixel
-                min_lat_in = np.min(lat_in_, axis=1)
-                max_lat_in = np.max(lat_in_, axis=1)
-                min_lon_in = np.min(lon_in_, axis=1)
-                max_lon_in = np.max(lon_in_, axis=1)
-                # Build a counter of conditions (True=1, False=0)
-                bool_add = (
-                    (min_lat_in > lat_min).astype(int)
-                    + (max_lat_in < lat_max).astype(int)
-                    + (min_lon_in > lon_min).astype(int)
-                    + (max_lon_in < lon_max).astype(int)
-                    + (((max_lon_in - min_lon_in) < 50).astype(int))
-                )
-                b_counter = 5
+            if local_dir is None:
+                granule = dl.get_granule_by_date(dataset, d)
+            else:
+                granule = get_local_granule(local_dir, dataset, d)
+        except FileNotFoundError:
+            print(f"No data found for {d.strftime('%Y-%m-%d')}, skipping")
+            continue
 
-                # Not implementing additional filter conditions for now
-
-                idx = np.where(bool_add == b_counter)[0]
-                if idx.size > 0:
-                    n_pixels = lat_in_.shape[0]
-                    mat_in = np.zeros((n_pixels, n_vars), dtype=np.float32)
-                    col = 0
-                    for var in variables:
-                        mat_in[:, col] = get_variable_array(granule, var)
-                        col += 1
-                    # Compute grid indices (scale the pixel bounds to the output grid)
-                    # Note: we subtract 1 to convert to 0-indexing.
-                    iLat_ = np.floor(
-                        ((lat_in_[idx, :] - lat_min) / (lat_max - lat_min))
-                        * len(lat_vals)
-                    ).astype(int)
-                    iLon_ = np.floor(
-                        ((lon_in_[idx, :] - lon_min) / (lon_max - lon_min))
-                        * len(lon_vals)
-                    ).astype(int)
-                    iLat_ = np.clip(iLat_, 0, len(lat_vals) - 1)
-                    iLon_ = np.clip(iLon_, 0, len(lon_vals) - 1)
-                    s = idx.size
-                    s2 = mat_in.shape[1]
-                    favg_all(
-                        mat_data,
-                        mat_data_weights,
-                        iLat_,
-                        iLon_,
-                        mat_in[idx, :],
-                        s,
-                        s2,
-                        n_vars,
-                        points,
-                    )
-        except Exception as e:
-            print(
-                f"Error adding granule for {d.strftime('%Y-%m-%d')} to grid, caught: {e}"
-            )
+        print(f"Gridding {d.strftime('%Y-%m-%d')} ({t_ndx + 1}/{n_time})")
+        process_day_granule(
+            granule,
+            lat_min,
+            lat_max,
+            lon_min,
+            lon_max,
+            variables,
+            lat_vals,
+            lon_vals,
+            n_vars,
+            points,
+            mat_data,
+            mat_data_weights,
+            pydap=(local_dir is None)
+        )
 
         if np.max(mat_data_weights) > 0:
             ds_n[t_ndx, :, :] = mat_data_weights
             ds_time[t_ndx] = date2num(d, units=ds_time.units)
-            col = 0
-            for var in variables:
+            for col, var in enumerate(variables):
                 da = np.round(mat_data[:, :, col], 6)
                 da[mat_data_weights < 1e-10] = -999
                 nc_dict[var][t_ndx, :, :] = da
-                col += 1
         else:
             ds_n[t_ndx, :, :] = 0
             ds_time[t_ndx] = date2num(d, units=ds_time.units)
 
-        # Reset the temporary arrays for the next time slice
+        # Reset temporary arrays for the next time slice
         mat_data.fill(0.0)
         mat_data_weights.fill(0.0)
 
     ds_out.close()
+    return out_file
 
 
 if __name__ == "__main__":
     create_gridded_raster(
-        datetime(2020, 4, 1),
-        datetime(2020, 4, 30),
+        datetime(2020, 5, 1),
+        datetime(2020, 5, 31),
         "OCO3_L2_Lite_SIF.11r",
         ["Daily_SIF_757nm"],
-        "data/apr_2020_sif.nc4",
+        "data/may_2020_sif.nc4",
+        local_dir="data"
     )

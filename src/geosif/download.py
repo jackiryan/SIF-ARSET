@@ -241,6 +241,13 @@ class GesDiscDownloader:
                 f"{dataset} is not a dataset available on OCO-2/3 GES DISC"
             )
 
+        # Short circuit the queries if we have already populated the values
+        if (
+            self.datasets[dataset].startdate != None
+            and self.datasets[dataset].enddate != None
+        ):
+            return (self.datasets[dataset].startdate, self.datasets[dataset].enddate)
+
         dataset_url = f"{self.oco2_gesdisc_url}{dataset}/"
         dir_contents, _ = self.list_directory(dataset_url)
 
