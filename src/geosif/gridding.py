@@ -593,7 +593,6 @@ def create_gridded_raster(
     )
 
     for t_ndx, d in enumerate(tqdm(dates, desc="Time slices")):
-        
         try:
             if local_dir is None:
                 granule = dl.get_granule_by_date(dataset, d)
@@ -601,6 +600,8 @@ def create_gridded_raster(
                 granule = get_local_granule(local_dir, dataset, d)
         except FileNotFoundError:
             print(f"No data found for {d.strftime('%Y-%m-%d')}, skipping")
+            ds_n[t_ndx, :, :] = 0
+            ds_time[t_ndx] = date2num(d, units=ds_time.units)
             continue
 
         print(f"Gridding {d.strftime('%Y-%m-%d')} ({t_ndx + 1}/{n_time})")
