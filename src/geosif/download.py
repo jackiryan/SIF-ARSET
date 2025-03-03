@@ -66,6 +66,21 @@ class GesDiscDataset:
 def create_retry_session(
     token: str, retries: int = 5, backoff_factor: float = 1.0
 ) -> requests.Session:
+    """
+    When downloading data from the DAAC's direct data portal (not OpenDAP), the
+    server can occasionally return error 503 (Unavailable) when handling too many
+    client requests. This function attempts to mitigate that by retrying the request
+    with a backoff factor.
+
+    Args:
+        token (str): Earthdata auth token
+        retries (int): Number of retries to use for the request
+        backoff_factor (float): increase in amount of time to space repeated requests
+    
+    Returns:
+        requests.Session: A session object that will be used for subsequent HTTPS
+            requests to the DAAC
+    """
     session = requests.Session()
     session.headers = {"Authorization": f"Bearer {token}"}
 
@@ -388,7 +403,7 @@ class GesDiscDownloader:
         file_path = outpath / filename
         if file_path.exists():
             # Skip downloading if the file exists
-            print(f"Skipping {file_path}, already downloaded...")
+            # print(f"Skipping {file_path}, already downloaded...")
             return file_path
         try:
             with self.session.get(url, stream=True) as r:
@@ -400,12 +415,6 @@ class GesDiscDownloader:
             raise RuntimeError(f"Failed to download {url}: {e}") from e
         return file_path
 
-    def _download_netcdf(self, url: str, outpath: Path) -> Path:
-        filename = os.path.basename(urlparse(url).path)
-        file_path = outpath / filename
-        pydap_ds = open_url(url, session=self.session)
-        return file_path
-
     def download_timerange(
         self,
         dataset: str,
@@ -413,7 +422,7 @@ class GesDiscDownloader:
         end_date: datetime,
         outpath: str | Path,
         parallel: bool = True,
-    ) -> list[Path]:
+    ) -> tuple[list[Path], list[datetime], list[str]]:
         """
         Download a set of granules from a time range of dates, using multithreading by default.
 
@@ -421,17 +430,23 @@ class GesDiscDownloader:
             dataset (str): The name of a dataset on the OCO-2/3 GES DISC OpenDAP portal
             start_date (datetime): The requested start date of the dataset
             end_date (datetime): The requested end date of the dataset
-            outpath (Path): Directory to store the output files. It will be created if it does not exist.
+            outpath (Path): Directory to store the output files. It will be created
+                if it does not exist.
             parallel (bool): Download files in parallel. Default behavior is True.
 
         Returns:
-            list[Path]: A list of pathlib.Path objects referring to each file that was downloaded.
+            tuple[list[Path], list[datetime], list[str]]: 
+                - list of Paths referring to each file that was downloaded
+                - list of dates for which no granule was found on the DAAC.
+                - list of urls that failed to download, if any
 
         Raises:
             ValueError: If the dataset does not exist
         """
         # Will raise an error if there is an issue with the requested query
         self._check_inputs(dataset)
+        if (start_date > end_date):
+            raise ValueError("start date is after the end date of requested time range")
 
         # Create the output directory if it does not exist.
         if type(outpath) == str:
@@ -469,12 +484,18 @@ class GesDiscDownloader:
                             url[: -len(".html")] if url.endswith(".html") else url
                         )
                         archive_url = self._opendap_to_archive_url(dataset, opendap_url)
+                        filename = os.path.basename(urlparse(archive_url).path)
+                        file_path = outpath / filename
+                        if not file_path.exists():
+                            total_size += size
                         granule_urls.append((date, archive_url))
-                        total_size += size
+
+        found_dates = list(map(lambda x: x[0], granule_urls))
+        notfound_dates = list(set(date_list) - set(found_dates))
 
         if not granule_urls:
             print("No granules found in the specified date range.")
-            return []
+            return ([], notfound_dates, [])
 
         total_mb = total_size / (1024 * 1024)
         print(
@@ -483,15 +504,18 @@ class GesDiscDownloader:
         confirm = input("Do you want to continue? (y/N): ")
         if confirm.lower() not in ("y", "yes"):
             print("Download cancelled.")
-            return []
+            return ([], [], [])
 
         downloaded_files: list[Path] = []
+        failed_downloads: list[str] = []
 
         def download_task(url: str) -> Path:
             return self._download_file(url, outpath)
 
         if parallel:
-            with ThreadPoolExecutor() as executor:
+            # Setting max_workers to 3 as a default because more workers might be
+            # causing issues server-side
+            with ThreadPoolExecutor(max_workers=3) as executor:
                 futures = {
                     executor.submit(download_task, url): url for _, url in granule_urls
                 }
@@ -501,16 +525,22 @@ class GesDiscDownloader:
                     try:
                         downloaded_files.append(future.result())
                     except Exception as e:
-                        print(f"Failed to download a file: {e}")
+                        failed_url = futures[future]
+                        print(f"Failed to download {failed_url}: {e}")
+                        failed_downloads.append(failed_url)
+
         else:
-            for _, url in granule_urls:
+            for _, url in tqdm(
+                granule_urls, total=len(granule_urls), desc="Downloading files"
+            ):
                 try:
                     file_path = download_task(url)
                     downloaded_files.append(file_path)
                 except Exception as e:
                     print(f"Failed to download {url}: {e}")
+                    failed_downloads.append(url)
 
-        return downloaded_files
+        return (downloaded_files, notfound_dates, failed_downloads)
 
 
 if __name__ == "__main__":

@@ -323,14 +323,12 @@ def validate_local_dir(
         end_date (datetime): The requested end date.
 
     Raises:
-        ValueError: If the requested date range is outside the available time range for the dataset.
+        FileNotFoundError: If the requested date range is outside the available time range for the dataset.
     """
     assert os.path.exists(local_dir), "input granule directory not found"
-    try:
-        start_granule = get_local_granule(local_dir, dataset, start_date)
-        end_granule = get_local_granule(local_dir, dataset, end_date)
-    except FileNotFoundError:
-        raise ValueError("Either start date or end date granule is not present in provided source directory")
+    month_files = glob(os.path.join(local_dir, f"{dataset}*{start_date.strftime('%y%m')}*.nc*"))
+    if len(month_files) == 0:
+        raise FileNotFoundError("No granules from the given month found in the provided input directory.")
 
 
 def get_local_granule(local_dir: str, dataset: str, d: datetime) -> DatasetType:
@@ -349,7 +347,7 @@ def get_local_granule(local_dir: str, dataset: str, d: datetime) -> DatasetType:
     Raises:
         FileNotFoundError: No data is available for the requested day in the dataset
     """
-    found_files = glob(os.path.join(local_dir, f"{dataset}*{d.strftime('%y%m%d')}*"))
+    found_files = glob(os.path.join(local_dir, f"{dataset}*{d.strftime('%y%m%d')}*.nc*"))
     if len(found_files) > 0:
         return Dataset(found_files[0], "r")
     else:
