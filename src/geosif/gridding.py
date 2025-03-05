@@ -49,7 +49,7 @@ LT_STRS = ["<", "lt"]
 
 
 def get_variable_array(
-    granule: DatasetType, variable: str, dd: bool = False, pydap: bool = True
+    granule: DatasetType, variable: str, dd: bool = False, pydap: bool = True,
 ) -> npt.NDArray[np.float32]:
     """
     Retrieve a variable's data from a granule and return it as a numpy array of type float32.
@@ -64,9 +64,16 @@ def get_variable_array(
         npt.NDArray[np.float32]: A numpy array of type float32 containing the variable data, reshaped if required.
     """
     if pydap:
-        data = np.array(granule[variable].data[:], dtype=np.float32)
+        # pydap flattens all variables to the top level by joining group names with an underscore
+        varname = variable.replace("/", "_")
+        data = np.array(granule[varname].data[:], dtype=np.float32)
     else:
-        data = np.array(granule[variable][:], dtype=np.float32)
+        if "/" in variable:
+            group = variable.split("/")[0]
+            varname = variable.split("/")[-1]
+            data = np.array(granule[group][varname][:], dtype=np.float32)
+        else:
+            data = np.array(granule[variable][:], dtype=np.float32)
     # DD means there is a second index for footprint bounds of dimension 4
     if dd:
         if data.shape[0] == 4:
@@ -425,26 +432,12 @@ def process_day_granule(
             & (lon_granule > lon_min)
             & (lon_granule < lon_max)
         ):
-            if pydap:
-                lat_in_ = get_variable_array(
-                    granule, "Geolocation_footprint_latitude_vertices", dd=True
-                )
-                lon_in_ = get_variable_array(
-                    granule, "Geolocation_footprint_longitude_vertices", dd=True
-                )
-            else:
-                lat_in_ = get_variable_array(
-                    granule.groups["Geolocation"],
-                    "footprint_latitude_vertices",
-                    dd=True,
-                    pydap=pydap,
-                )
-                lon_in_ = get_variable_array(
-                    granule.groups["Geolocation"],
-                    "footprint_longitude_vertices",
-                    dd=True,
-                    pydap=pydap,
-                )
+            lat_in_ = get_variable_array(
+                granule, "Geolocation/footprint_latitude_vertices", dd=True, pydap=pydap
+            )
+            lon_in_ = get_variable_array(
+                granule, "Geolocation/footprint_longitude_vertices", dd=True, pydap=pydap
+            )
             # If the first dimension is 4, transpose the arrays
             if lat_in_.shape[0] == 4:
                 lat_in_ = lat_in_.T
