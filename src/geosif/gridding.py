@@ -43,6 +43,10 @@ from . import GesDiscDownloader
 
 DatasetType = TypeVar("DatasetType")
 
+EQ_STRS = ["=", "==", "eq"]
+GT_STRS = [">", "gt"]
+LT_STRS = ["<", "lt"]
+
 
 def get_variable_array(
     granule: DatasetType, variable: str, dd: bool = False, pydap: bool = True
@@ -309,8 +313,9 @@ def validate_date_range(
             f"{end_date.strftime('%Y-%m-%d')}) is outside the available time range for {dataset}"
         )
 
+
 def validate_local_dir(
-        local_dir: str, dataset: str, start_date: datetime, end_date: datetime
+    local_dir: str, dataset: str, start_date: datetime, end_date: datetime
 ) -> None:
     """
     Validate that the requested granules are available in the specified directory when
@@ -326,9 +331,13 @@ def validate_local_dir(
         FileNotFoundError: If the requested date range is outside the available time range for the dataset.
     """
     assert os.path.exists(local_dir), "input granule directory not found"
-    month_files = glob(os.path.join(local_dir, f"{dataset}*{start_date.strftime('%y%m')}*.nc*"))
+    month_files = glob(
+        os.path.join(local_dir, f"{dataset}*{start_date.strftime('%y%m')}*.nc*")
+    )
     if len(month_files) == 0:
-        raise FileNotFoundError("No granules from the given month found in the provided input directory.")
+        raise FileNotFoundError(
+            "No granules from the given month found in the provided input directory."
+        )
 
 
 def get_local_granule(local_dir: str, dataset: str, d: datetime) -> DatasetType:
@@ -340,18 +349,22 @@ def get_local_granule(local_dir: str, dataset: str, d: datetime) -> DatasetType:
         local_dir (str): String path of the source granule directory.
         dataset (str): The dataset identifier, not the same as the one used in the OpenDAP portal.
         d (datetime): The requested date.
-    
+
     Returns:
         DatasetType: A netCDF Dataset object.
 
     Raises:
         FileNotFoundError: No data is available for the requested day in the dataset
     """
-    found_files = glob(os.path.join(local_dir, f"{dataset}*{d.strftime('%y%m%d')}*.nc*"))
+    found_files = glob(
+        os.path.join(local_dir, f"{dataset}*{d.strftime('%y%m%d')}*.nc*")
+    )
     if len(found_files) > 0:
         return Dataset(found_files[0], "r")
     else:
-        raise FileNotFoundError(f"Unable to find a matching granule for {d.strftime('%y%m%d')}")
+        raise FileNotFoundError(
+            f"Unable to find a matching granule for {d.strftime('%y%m%d')}"
+        )
 
 
 def process_day_granule(
@@ -367,6 +380,7 @@ def process_day_granule(
     points: npt.NDArray[np.float32],
     mat_data: npt.NDArray[np.float32],
     mat_data_weights: npt.NDArray[np.float32],
+    filters: dict[str, tuple[str, float]] | None = None,
     pydap: bool = True,
 ) -> None:
     """
@@ -390,6 +404,9 @@ def process_day_granule(
         points (npt.NDArray[np.float32]): Temporary array for subdividing pixel bounds.
         mat_data (npt.NDArray[np.float32]): 3D grid data array to update.
         mat_data_weights (npt.NDArray[np.float32]): 2D weight array to update.
+        filters (dict[str, tuple[str, float]]): Optionally specify a list of filters
+            where they key is the netCDF variable to filter on, and the values are a
+            tuple of a comparator string (<, ==, etc.) and the threshold value
         pydap (bool): If True, handle the granule dataset using pydap syntax
 
     Returns:
@@ -417,10 +434,16 @@ def process_day_granule(
                 )
             else:
                 lat_in_ = get_variable_array(
-                    granule.groups["Geolocation"], "footprint_latitude_vertices", dd=True, pydap=pydap
+                    granule.groups["Geolocation"],
+                    "footprint_latitude_vertices",
+                    dd=True,
+                    pydap=pydap,
                 )
                 lon_in_ = get_variable_array(
-                    granule.groups["Geolocation"], "footprint_longitude_vertices", dd=True, pydap=pydap
+                    granule.groups["Geolocation"],
+                    "footprint_longitude_vertices",
+                    dd=True,
+                    pydap=pydap,
                 )
             # If the first dimension is 4, transpose the arrays
             if lat_in_.shape[0] == 4:
@@ -439,6 +462,25 @@ def process_day_granule(
                 + (((max_lon_in - min_lon_in) < 50).astype(int))
             )
             b_counter = 5
+            if filters:
+                for key, val in filters.items():
+                    comp = val[0]
+                    thresh = val[1]
+                    key_arr = get_variable_array(granule, key, pydap=pydap)
+                    if comp in EQ_STRS:
+                        bool_add += key_arr == thresh
+                        b_counter += 1
+                    elif comp in GT_STRS:
+                        bool_add += key_arr > thresh
+                        b_counter += 1
+                    elif comp in LT_STRS:
+                        bool_add += key_arr < thresh
+                        b_counter += 1
+                    else:
+                        print(
+                            f"Ignoring unprocessable filter: ds['{key}'] {comp} {thresh}"
+                        )
+
             idx = np.where(bool_add == b_counter)[0]
             if idx.size > 0:
                 n_pixels = lat_in_.shape[0]
@@ -482,7 +524,8 @@ def create_gridded_raster(
     lon_max: float = 180.0,
     lat_res: float = 1.0,
     lon_res: float = 1.0,
-    local_dir: str | None = None
+    local_dir: str | None = None,
+    filters: dict[str, tuple[str, float]] | None = None,
 ) -> str:
     """
     Create a gridded raster netCDF file from a dataset over a specified date range.
@@ -506,6 +549,9 @@ def create_gridded_raster(
         local_dir (str | None): If specified, use a local directory to source input
             granules instead of progressively downloading using pydap. This will also
             enable parallel processing.
+        filters (dict[str, tuple[str, float]]): Optionally specify a list of filters
+            where they key is the netCDF variable to filter on, and the values are a
+            tuple of a comparator string (<, ==, etc.) and the threshold value
 
     Returns:
         str: The path to the output netCDF file.
@@ -518,7 +564,7 @@ def create_gridded_raster(
     if local_dir is None:
         dl = GesDiscDownloader()
         validate_date_range(dl, dataset, start_date, end_date)
-    else: 
+    else:
         validate_local_dir(local_dir, dataset, start_date, end_date)
 
     n_time = len(dates)
@@ -585,12 +631,8 @@ def create_gridded_raster(
     points = np.zeros((n_grid, n_grid, 2), dtype=np.float32)
 
     n_vars = len(variables)
-    mat_data = np.zeros(
-        (len(lon_vals), len(lat_vals), n_vars), dtype=np.float32
-    )
-    mat_data_weights = np.zeros(
-        (len(lon_vals), len(lat_vals)), dtype=np.float32
-    )
+    mat_data = np.zeros((len(lon_vals), len(lat_vals), n_vars), dtype=np.float32)
+    mat_data_weights = np.zeros((len(lon_vals), len(lat_vals)), dtype=np.float32)
 
     for t_ndx, d in enumerate(tqdm(dates, desc="Time slices")):
         try:
@@ -598,39 +640,46 @@ def create_gridded_raster(
                 granule = dl.get_granule_by_date(dataset, d)
             else:
                 granule = get_local_granule(local_dir, dataset, d)
+
+            print(f"Gridding {d.strftime('%Y-%m-%d')} ({t_ndx + 1}/{n_time})")
+            process_day_granule(
+                granule,
+                lat_min,
+                lat_max,
+                lon_min,
+                lon_max,
+                variables,
+                lat_vals,
+                lon_vals,
+                n_vars,
+                points,
+                mat_data,
+                mat_data_weights,
+                filters=filters,
+                pydap=(local_dir is None),
+            )
+
+            if np.max(mat_data_weights) > 0:
+                ds_n[t_ndx, :, :] = mat_data_weights
+                ds_time[t_ndx] = date2num(d, units=ds_time.units)
+                for col, var in enumerate(variables):
+                    da = np.round(mat_data[:, :, col], 6)
+                    da[mat_data_weights < 1e-10] = -999
+                    nc_dict[var][t_ndx, :, :] = da
+            else:
+                ds_n[t_ndx, :, :] = 0
+                ds_time[t_ndx] = date2num(d, units=ds_time.units)
         except FileNotFoundError:
             print(f"No data found for {d.strftime('%Y-%m-%d')}, skipping")
+            granule = None
             ds_n[t_ndx, :, :] = 0
             ds_time[t_ndx] = date2num(d, units=ds_time.units)
-            continue
-
-        print(f"Gridding {d.strftime('%Y-%m-%d')} ({t_ndx + 1}/{n_time})")
-        process_day_granule(
-            granule,
-            lat_min,
-            lat_max,
-            lon_min,
-            lon_max,
-            variables,
-            lat_vals,
-            lon_vals,
-            n_vars,
-            points,
-            mat_data,
-            mat_data_weights,
-            pydap=(local_dir is None)
-        )
-
-        if np.max(mat_data_weights) > 0:
-            ds_n[t_ndx, :, :] = mat_data_weights
-            ds_time[t_ndx] = date2num(d, units=ds_time.units)
-            for col, var in enumerate(variables):
-                da = np.round(mat_data[:, :, col], 6)
-                da[mat_data_weights < 1e-10] = -999
-                nc_dict[var][t_ndx, :, :] = da
-        else:
-            ds_n[t_ndx, :, :] = 0
-            ds_time[t_ndx] = date2num(d, units=ds_time.units)
+        except Exception as e:
+            print(f"Error processing granule for {d.strftime('%Y-%m-%d')}: {e}")
+        finally:
+            # Close the granule file if it's a netCDF Dataset
+            if granule is not None and hasattr(granule, "close"):
+                granule.close()
 
         # Reset temporary arrays for the next time slice
         mat_data.fill(0.0)
@@ -647,5 +696,5 @@ if __name__ == "__main__":
         "OCO3_L2_Lite_SIF.11r",
         ["Daily_SIF_757nm"],
         "data/may_2020_sif.nc4",
-        local_dir="data"
+        local_dir="data",
     )

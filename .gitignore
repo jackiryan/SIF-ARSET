@@ -1,5 +1,6 @@
 *.nc4
 data/
+notebooks/*.png
 # cache db file for url requests
 gesdisc_cache.sqlite
 pydap-cache/

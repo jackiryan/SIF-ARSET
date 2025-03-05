@@ -76,7 +76,7 @@ def create_retry_session(
         token (str): Earthdata auth token
         retries (int): Number of retries to use for the request
         backoff_factor (float): increase in amount of time to space repeated requests
-    
+
     Returns:
         requests.Session: A session object that will be used for subsequent HTTPS
             requests to the DAAC
@@ -99,7 +99,6 @@ def create_retry_session(
 
 
 class GesDiscDownloader:
-
     # While this URL references OCO-2, it also contains OCO-3 datasets
     oco2_gesdisc_url = "https://oco2.gesdisc.eosdis.nasa.gov/opendap/"
     # OpenDAP is basically broken as far as I can tell, and does not allow downloads
@@ -435,7 +434,7 @@ class GesDiscDownloader:
             parallel (bool): Download files in parallel. Default behavior is True.
 
         Returns:
-            tuple[list[Path], list[datetime], list[str]]: 
+            tuple[list[Path], list[datetime], list[str]]:
                 - list of Paths referring to each file that was downloaded
                 - list of dates for which no granule was found on the DAAC.
                 - list of urls that failed to download, if any
@@ -445,7 +444,7 @@ class GesDiscDownloader:
         """
         # Will raise an error if there is an issue with the requested query
         self._check_inputs(dataset)
-        if (start_date > end_date):
+        if start_date > end_date:
             raise ValueError("start date is after the end date of requested time range")
 
         # Create the output directory if it does not exist.
@@ -499,7 +498,7 @@ class GesDiscDownloader:
 
         total_mb = total_size / (1024 * 1024)
         print(
-            f"After this operation, {int(total_mb)} MB of additional disk space will be used."
+            f"This action will add an additional {int(total_mb)} MB of data to {outpath}"
         )
         confirm = input("Do you want to continue? (y/N): ")
         if confirm.lower() not in ("y", "yes"):

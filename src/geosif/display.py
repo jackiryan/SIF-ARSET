@@ -35,8 +35,10 @@ def plot_samples(
     point_size: int = 20,
     vmin: float | None = None,
     vmax: float | None = None,
+    extents: list[float] = [-180, 180, -90, 90],
     title: str | None = None,
     label: str | None = None,
+    outfile: str | None = None,
 ) -> None:
     """
     Plots sample values at the corresponding latitude and longitude coordinates
@@ -52,6 +54,7 @@ def plot_samples(
         vmax (float): Upper bound for the colormap. Defaults to None (automatic)
         title (str): Optionally provide a title for the plot
         label (str): Optionally provide a name and unit for the sample quantities
+        outfile (str): Optionally save the plot as an image
 
     Returns:
         None
@@ -59,56 +62,33 @@ def plot_samples(
     Raises:
         ValueError: If the data arrays are not all the same length
     """
-    if not (len(samples) == len(lat) == len(lon)):
-        raise ValueError("samples, lat, and lon must all have the same length.")
-
-    fig, ax = plt.subplots(
-        subplot_kw={"projection": ccrs.PlateCarree()}, figsize=(10, 5)
-    )
-
-    # Add coastlines and other geographic features
-    ax.set_global()
-    ax.coastlines()
-    ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor="black")
-    ax.add_feature(cfeature.LAND, facecolor="lightgray")
-    ax.add_feature(cfeature.OCEAN, facecolor="white")
-    ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
-
-    # Plot the data as a scatter plot
-    scatter = ax.scatter(
-        lon,
+    _plot_map(
+        False,
+        samples,
         lat,
-        c=samples,
+        lon,
         cmap=cmap,
-        s=point_size,
+        point_size=point_size,
         vmin=vmin,
         vmax=vmax,
-        transform=ccrs.PlateCarree(),
+        extents=extents,
+        title=title,
+        label=label,
+        outfile=outfile,
     )
-
-    cbar = plt.colorbar(
-        scatter, ax=ax, orientation="horizontal", pad=0.05, fraction=0.05
-    )
-    if label:
-        cbar.set_label(label)
-    else:
-        cbar.set_label("Sample values")
-
-    if title:
-        ax.set_title(title)
-
-    plt.show()
 
 
 def plot_gridded(
     grid_data: npt.NDArray[np.float32],
-    lon2d: npt.NDArray[np.float32],
     lat2d: npt.NDArray[np.float32],
+    lon2d: npt.NDArray[np.float32],
     cmap: str = "viridis",
     vmin: float | None = None,
     vmax: float | None = None,
+    extents: list[float] = [-180, 180, -90, 90],
     title: str | None = None,
     label: str | None = None,
+    outfile: str | None = None,
 ) -> None:
     """
     Plots 2-D gridded data on a lat/lon coordinate system overlayed on a world map.
@@ -122,6 +102,7 @@ def plot_gridded(
         vmax (float): Upper bound for the colormap. Defaults to None (automatic)
         title (str): Optionally provide a title for the plot
         label (str): Optionally provide a name and unit for the sample quantities
+        outfile (str): Optionally save the plot as an image
 
     Returns:
         None
@@ -129,31 +110,77 @@ def plot_gridded(
     Raises:
         ValueError: If the data arrays are not all the same length
     """
-    if not (len(grid_data) == len(lat2d) == len(lon2d)):
-        raise ValueError("samples, lat, and lon must all have the same length.")
-
-    fig = plt.figure(figsize=(12, 6))
-    ax = plt.axes(projection=ccrs.PlateCarree())
-    ax.set_global()
-    ax.coastlines()
-    ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor="black")
-    ax.add_feature(cfeature.LAND, facecolor="lightgray")
-    ax.add_feature(cfeature.OCEAN, facecolor="white")
-    ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
-
-    # Matplotlib pcolormesh displays the gridded data as a pixel-like grid
-    # Note vmax is lower here than in the previous example, SIF can vary seasonally.
-    pcm = ax.pcolormesh(
-        lon2d,
-        lat2d,
+    _plot_map(
+        True,
         grid_data,
+        lat2d,
+        lon2d,
+        cmap=cmap,
         vmin=vmin,
         vmax=vmax,
-        cmap=cmap,
-        transform=ccrs.PlateCarree(),
+        extents=extents,
+        title=title,
+        label=label,
+        outfile=outfile,
     )
 
-    cbar = plt.colorbar(pcm, ax=ax, orientation="horizontal", pad=0.05, fraction=0.05)
+
+def _plot_map(
+    is_grid: bool,
+    data: npt.NDArray[np.float32],
+    lat: npt.NDArray[np.float32],
+    lon: npt.NDArray[np.float32],
+    cmap: str = "viridis",
+    point_size: int = 20,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    extents: list[float] = [-180, 180, -90, 90],
+    title: str | None = None,
+    label: str | None = None,
+    outfile: str | None = None,
+) -> None:
+    if not (len(data) == len(lat) == len(lon)):
+        raise ValueError("samples, lat, and lon must all have the same length.")
+
+    fig, ax = plt.subplots(
+        subplot_kw={"projection": ccrs.PlateCarree()}, figsize=(16, 8)
+    )
+
+    ax.set_global()
+    ax.add_feature(cfeature.LAND, facecolor="lightgray")
+    ax.add_feature(cfeature.OCEAN, facecolor="white")
+    # Renders coastlines and borders underneath data
+    ax.coastlines(linewidth=0.5, zorder=-1)
+    ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor="black", zorder=-1)
+    ax.set_extent(extents, crs=ccrs.PlateCarree())
+
+    if is_grid:
+        # Matplotlib pcolormesh displays the gridded data as a pixel-like grid
+        # Note vmax is lower here than in the previous example, SIF can vary seasonally.
+        chart = ax.pcolormesh(
+            lon,
+            lat,
+            data,
+            vmin=vmin,
+            vmax=vmax,
+            cmap=cmap,
+            transform=ccrs.PlateCarree(),
+        )
+    else:
+        # Plot the data as a scatter plot
+        chart = ax.scatter(
+            lon,
+            lat,
+            c=data,
+            cmap=cmap,
+            s=point_size,
+            vmin=vmin,
+            vmax=vmax,
+            transform=ccrs.PlateCarree(),
+        )
+
+    cbar = plt.colorbar(chart, ax=ax, orientation="horizontal", pad=0.05, fraction=0.05)
+
     if label:
         cbar.set_label(label)
     else:
@@ -161,5 +188,9 @@ def plot_gridded(
 
     if title:
         plt.title(title)
+
+    if outfile:
+        plt.savefig(outfile, bbox_inches="tight", dpi=300)
+        print(f"Plot saved to {outfile}")
 
     plt.show()
