@@ -36,10 +36,12 @@ from netCDF4 import Dataset, date2num, Variable
 import numpy as np
 import numpy.typing as npt
 import os
+import re
 from tqdm.notebook import tqdm
 from typing import TypeVar
 
 from . import GesDiscDownloader
+from . import L2_SCHEMAS
 
 DatasetType = TypeVar("DatasetType")
 
@@ -387,6 +389,7 @@ def process_day_granule(
     points: npt.NDArray[np.float32],
     mat_data: npt.NDArray[np.float32],
     mat_data_weights: npt.NDArray[np.float32],
+    schema: dict[str, str],
     filters: dict[str, tuple[str, float]] | None = None,
     pydap: bool = True,
 ) -> None:
@@ -411,6 +414,7 @@ def process_day_granule(
         points (npt.NDArray[np.float32]): Temporary array for subdividing pixel bounds.
         mat_data (npt.NDArray[np.float32]): 3D grid data array to update.
         mat_data_weights (npt.NDArray[np.float32]): 2D weight array to update.
+        schema (dict[str, str]): A dictionary describing lat/lon key names in the granules.
         filters (dict[str, tuple[str, float]]): Optionally specify a list of filters
             where they key is the netCDF variable to filter on, and the values are a
             tuple of a comparator string (<, ==, etc.) and the threshold value
@@ -424,8 +428,8 @@ def process_day_granule(
     except:
         g_date = "unknown date"
     try:
-        lat_granule = get_variable_array(granule, "Latitude", pydap=pydap)
-        lon_granule = get_variable_array(granule, "Longitude", pydap=pydap)
+        lat_granule = get_variable_array(granule, schema["lat"], pydap=pydap)
+        lon_granule = get_variable_array(granule, schema["lon"], pydap=pydap)
         if np.any(
             (lat_granule > lat_min)
             & (lat_granule < lat_max)
@@ -433,10 +437,10 @@ def process_day_granule(
             & (lon_granule < lon_max)
         ):
             lat_in_ = get_variable_array(
-                granule, "Geolocation/footprint_latitude_vertices", dd=True, pydap=pydap
+                granule, schema["vertex_lat"], dd=True, pydap=pydap
             )
             lon_in_ = get_variable_array(
-                granule, "Geolocation/footprint_longitude_vertices", dd=True, pydap=pydap
+                granule, schema["vertex_lon"], dd=True, pydap=pydap
             )
             # If the first dimension is 4, transpose the arrays
             if lat_in_.shape[0] == 4:
@@ -551,6 +555,7 @@ def create_gridded_raster(
 
     Raises:
         ValueError: If the requested date range is outside the available time range for the dataset.
+        ValueError: If the requested dataset does not have a known schema describing its lat/lon variables.
     """
     dates = generate_dates(start_date, end_date)
 
@@ -559,6 +564,15 @@ def create_gridded_raster(
         validate_date_range(dl, dataset, start_date, end_date)
     else:
         validate_local_dir(local_dir, dataset, start_date, end_date)
+    
+    granule_schema: dict[str, str] | None = None
+    for schema in L2_SCHEMAS:
+        if re.match(schema["regex"], dataset):
+            granule_schema = schema
+        elif re.match(schema["file_regex"], dataset):
+            granule_schema = schema
+    if granule_schema is None:
+        raise ValueError(f"unsupported dataset: {dataset}, add to L2_SCHEMAS in schemas.py if you know the variables to use.")
 
     n_time = len(dates)
     eps = lat_res / 100.0
@@ -648,6 +662,7 @@ def create_gridded_raster(
                 points,
                 mat_data,
                 mat_data_weights,
+                granule_schema,
                 filters=filters,
                 pydap=(local_dir is None),
             )
