@@ -7,7 +7,7 @@ L2_SCHEMAS: list[dict[str, str]] = [
         "lat": "Latitude",
         "lon": "Longitude",
         "vertex_lat": "Geolocation/footprint_latitude_vertices",
-        "vertex_lon": "Geolocation/footprint_longitude_vertices"
+        "vertex_lon": "Geolocation/footprint_longitude_vertices",
     },
     {
         "regex": r"OCO[23]_L2_Lite_FP.*r",
@@ -15,6 +15,6 @@ L2_SCHEMAS: list[dict[str, str]] = [
         "lat": "latitude",
         "lon": "longitude",
         "vertex_lat": "vertex_latitude",
-        "vertex_lon": "vertex_longitude"
-    }
+        "vertex_lon": "vertex_longitude",
+    },
 ]

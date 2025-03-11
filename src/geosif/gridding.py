@@ -51,7 +51,10 @@ LT_STRS = ["<", "lt"]
 
 
 def get_variable_array(
-    granule: DatasetType, variable: str, dd: bool = False, pydap: bool = True,
+    granule: DatasetType,
+    variable: str,
+    dd: bool = False,
+    pydap: bool = True,
 ) -> npt.NDArray[np.float32]:
     """
     Retrieve a variable's data from a granule and return it as a numpy array of type float32.
@@ -564,7 +567,7 @@ def create_gridded_raster(
         validate_date_range(dl, dataset, start_date, end_date)
     else:
         validate_local_dir(local_dir, dataset, start_date, end_date)
-    
+
     granule_schema: dict[str, str] | None = None
     for schema in L2_SCHEMAS:
         if re.match(schema["regex"], dataset):
@@ -572,7 +575,9 @@ def create_gridded_raster(
         elif re.match(schema["file_regex"], dataset):
             granule_schema = schema
     if granule_schema is None:
-        raise ValueError(f"unsupported dataset: {dataset}, add to L2_SCHEMAS in schemas.py if you know the variables to use.")
+        raise ValueError(
+            f"unsupported dataset: {dataset}, add to L2_SCHEMAS in schemas.py if you know the variables to use."
+        )
 
     n_time = len(dates)
     eps = lat_res / 100.0

@@ -42,7 +42,7 @@ The provided setup script will install the required packages **and open the note
 ./setup.sh
 ```
 
-**On Windows (TO DO: test this script)**
+**On Windows**
 ```powershell
 .\setup.ps1
 ```
