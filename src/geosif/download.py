@@ -35,7 +35,6 @@ import requests_cache
 from tqdm.notebook import tqdm
 from urllib.parse import urljoin, urlparse
 from urllib3.util.retry import Retry
-import xarray as xr
 
 os.makedirs("pydap-cache", exist_ok=True)
 pydap.lib.CACHE = "pydap-cache/"

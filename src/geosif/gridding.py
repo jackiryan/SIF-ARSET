@@ -30,6 +30,7 @@ rather than returned from the function. Most functions with a return value of "N
 the values of an array as a side effect.
 """
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from glob import glob
 from netCDF4 import Dataset, date2num, Variable
@@ -512,6 +513,60 @@ def process_day_granule(
         print(f"Error adding granule for {g_date} to grid, caught: {e}")
 
 
+def process_day_worker(args):
+    """
+    Wrapper around process_day_granule for parallel processing, only available for local files.
+    Returns a tuple of:
+        - t_ndx (int): time slice index
+        - d (datetime): datetime of the time slice (primarily for progress reporting)
+        - mat_data (np array): gridded values for the time slice
+        - mat_data_weights (np array): gridded weighted averaging factors
+        - results_status (str): status string for progress reporting
+    """
+    t_ndx, d, dataset, local_dir, lat_min, lat_max, lon_min, lon_max, variables, lat_vals, lon_vals, n_vars, n_grid, granule_schema, filters = args
+    
+    # Initialize local arrays for this worker
+    mat_data = np.zeros((len(lon_vals), len(lat_vals), n_vars), dtype=np.float32)
+    mat_data_weights = np.zeros((len(lon_vals), len(lat_vals)), dtype=np.float32)
+    points = np.zeros((n_grid, n_grid, 2), dtype=np.float32)
+    
+    try:
+        # For parallel processing, we only use local files
+        granule = get_local_granule(local_dir, dataset, d)
+
+        process_day_granule(
+            granule,
+            lat_min,
+            lat_max,
+            lon_min,
+            lon_max,
+            variables,
+            lat_vals,
+            lon_vals,
+            n_vars,
+            points,
+            mat_data,
+            mat_data_weights,
+            granule_schema,
+            filters=filters,
+            pydap=False,
+        )
+        
+        result_status = "success"
+    except FileNotFoundError:
+        result_status = "not_found"
+        granule = None
+    except Exception as e:
+        result_status = f"error: {str(e)}"
+        granule = None
+    finally:
+        # Close the granule file if it's a netCDF Dataset
+        if granule is not None and hasattr(granule, "close"):
+            granule.close()
+    
+    return t_ndx, d, mat_data, mat_data_weights, result_status
+
+
 def create_gridded_raster(
     start_date: datetime,
     end_date: datetime,
@@ -526,6 +581,7 @@ def create_gridded_raster(
     lon_res: float = 1.0,
     local_dir: str | None = None,
     filters: dict[str, tuple[str, float]] | None = None,
+    num_workers: int = 5,
 ) -> str:
     """
     Create a gridded raster netCDF file from a dataset over a specified date range.
@@ -552,6 +608,9 @@ def create_gridded_raster(
         filters (dict[str, tuple[str, float]]): Optionally specify a list of filters
             where they key is the netCDF variable to filter on, and the values are a
             tuple of a comparator string (<, ==, etc.) and the threshold value
+        num_workers (int): Number of parallel workers to process the data. Default is 5.
+            Parallel processing is only used if local_dir is specified because GES DISC
+            does not support multiple pydap clients from the same IP.
 
     Returns:
         str: The path to the output netCDF file.
@@ -565,6 +624,9 @@ def create_gridded_raster(
     if local_dir is None:
         dl = GesDiscDownloader()
         validate_date_range(dl, dataset, start_date, end_date)
+        if num_workers > 1:
+            print("Warning: Parallel processing requires local_dir. Falling back to sequential processing.")
+            num_workers = 1
     else:
         validate_local_dir(local_dir, dataset, start_date, end_date)
 
@@ -640,63 +702,108 @@ def create_gridded_raster(
     ds_n.long_name = "Number of pixels in average"
 
     n_grid = 10
-    points = np.zeros((n_grid, n_grid, 2), dtype=np.float32)
 
-    n_vars = len(variables)
-    mat_data = np.zeros((len(lon_vals), len(lat_vals), n_vars), dtype=np.float32)
-    mat_data_weights = np.zeros((len(lon_vals), len(lat_vals)), dtype=np.float32)
+    # Process dates in parallel or sequentially
+    if num_workers > 1:
+        # Parallel processing
+        # Prepare arguments for workers - only works with local files
+        worker_args = []
+        for t_ndx, d in enumerate(dates):
+            worker_args.append((
+                t_ndx, d, dataset, local_dir, 
+                lat_min, lat_max, lon_min, lon_max, 
+                variables, lat_vals, lon_vals, len(variables), n_grid,
+                granule_schema, filters
+            ))
+        
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = [executor.submit(process_day_worker, args) for args in worker_args]
+            
+            # Use tqdm to track progress
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Time slices"):
+                t_ndx, d, result_data, result_weights, result_status = future.result()
+                
+                # Handle the result
+                if result_status == "success":
+                    if np.max(result_weights) > 0:
+                        ds_n[t_ndx, :, :] = result_weights
+                        ds_time[t_ndx] = date2num(d, units=ds_time.units)
+                        for col, var in enumerate(variables):
+                            da = np.round(result_data[:, :, col], 6)
+                            da[result_weights < 1e-10] = -999
+                            nc_dict[var][t_ndx, :, :] = da
+                    else:
+                        ds_n[t_ndx, :, :] = 0
+                        ds_time[t_ndx] = date2num(d, units=ds_time.units)
+                elif result_status == "not_found":
+                    print(f"No data found for {d.strftime('%Y-%m-%d')}, skipping")
+                    ds_n[t_ndx, :, :] = 0
+                    ds_time[t_ndx] = date2num(d, units=ds_time.units)
+                else:
+                    print(f"Error processing granule for {d.strftime('%Y-%m-%d')}: {result_status}")
+                    ds_n[t_ndx, :, :] = 0
+                    ds_time[t_ndx] = date2num(d, units=ds_time.units)
+    else:
+        # Sequential processing
+        points = np.zeros((n_grid, n_grid, 2), dtype=np.float32)
+        n_vars = len(variables)
+        mat_data = np.zeros((len(lon_vals), len(lat_vals), n_vars), dtype=np.float32)
+        mat_data_weights = np.zeros((len(lon_vals), len(lat_vals)), dtype=np.float32)
 
-    for t_ndx, d in enumerate(tqdm(dates, desc="Time slices")):
-        try:
-            if local_dir is None:
-                granule = dl.get_granule_by_date(dataset, d)
-            else:
-                granule = get_local_granule(local_dir, dataset, d)
+        for t_ndx, d in enumerate(tqdm(dates, desc="Time slices")):
+            try:
+                if local_dir is None:
+                    granule = dl.get_granule_by_date(dataset, d)
+                else:
+                    granule = get_local_granule(local_dir, dataset, d)
 
-            print(f"Gridding {d.strftime('%Y-%m-%d')} ({t_ndx + 1}/{n_time})")
-            process_day_granule(
-                granule,
-                lat_min,
-                lat_max,
-                lon_min,
-                lon_max,
-                variables,
-                lat_vals,
-                lon_vals,
-                n_vars,
-                points,
-                mat_data,
-                mat_data_weights,
-                granule_schema,
-                filters=filters,
-                pydap=(local_dir is None),
-            )
+                print(f"Gridding {d.strftime('%Y-%m-%d')} ({t_ndx + 1}/{n_time})")
+                process_day_granule(
+                    granule,
+                    lat_min,
+                    lat_max,
+                    lon_min,
+                    lon_max,
+                    variables,
+                    lat_vals,
+                    lon_vals,
+                    n_vars,
+                    points,
+                    mat_data,
+                    mat_data_weights,
+                    granule_schema,
+                    filters=filters,
+                    pydap=(local_dir is None),
+                )
 
-            if np.max(mat_data_weights) > 0:
-                ds_n[t_ndx, :, :] = mat_data_weights
-                ds_time[t_ndx] = date2num(d, units=ds_time.units)
-                for col, var in enumerate(variables):
-                    da = np.round(mat_data[:, :, col], 6)
-                    da[mat_data_weights < 1e-10] = -999
-                    nc_dict[var][t_ndx, :, :] = da
-            else:
+                if np.max(mat_data_weights) > 0:
+                    ds_n[t_ndx, :, :] = mat_data_weights
+                    ds_time[t_ndx] = date2num(d, units=ds_time.units)
+                    for col, var in enumerate(variables):
+                        da = np.round(mat_data[:, :, col], 6)
+                        da[mat_data_weights < 1e-10] = -999
+                        nc_dict[var][t_ndx, :, :] = da
+                else:
+                    ds_n[t_ndx, :, :] = 0
+                    ds_time[t_ndx] = date2num(d, units=ds_time.units)
+            except FileNotFoundError:
+                print(f"No data found for {d.strftime('%Y-%m-%d')}, skipping")
+                granule = None
                 ds_n[t_ndx, :, :] = 0
                 ds_time[t_ndx] = date2num(d, units=ds_time.units)
-        except FileNotFoundError:
-            print(f"No data found for {d.strftime('%Y-%m-%d')}, skipping")
-            granule = None
-            ds_n[t_ndx, :, :] = 0
-            ds_time[t_ndx] = date2num(d, units=ds_time.units)
-        except Exception as e:
-            print(f"Error processing granule for {d.strftime('%Y-%m-%d')}: {e}")
-        finally:
-            # Close the granule file if it's a netCDF Dataset
-            if granule is not None and hasattr(granule, "close"):
-                granule.close()
+            except Exception as e:
+                print(f"Error processing granule for {d.strftime('%Y-%m-%d')}: {e}")
+                granule = None
+                ds_n[t_ndx, :, :] = 0
+                ds_time[t_ndx] = date2num(d, units=ds_time.units)
+            finally:
+                # Close the granule file if it's a netCDF Dataset
+                if granule is not None and hasattr(granule, "close"):
+                    granule.close()
 
-        # Reset temporary arrays for the next time slice
-        mat_data.fill(0.0)
-        mat_data_weights.fill(0.0)
+            # Reset temporary arrays for the next time slice
+            mat_data.fill(0.0)
+            mat_data_weights.fill(0.0)
 
     ds_out.close()
     return out_file

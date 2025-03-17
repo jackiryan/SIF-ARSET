@@ -11,4 +11,3 @@ python-dotenv
 requests
 requests-cache
 tqdm
-xarray
