@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenLayers Map Example</title>
+    <!-- Import OpenLayers CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/openlayers/10.3.1/ol.min.css"
+        integrity="sha512-oVyisN6T8O7H9DnBc1w/IipxzLhNvJERKa0Rx9fKEtaodE7UXQAypIHamYzQPAqVxp0pVl25e4spVQWIVfu6eA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        .map-container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="map-container">
+        <div id="map"></div>
+    </div>
+
+    <!-- Import OpenLayers JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/openlayers/10.3.1/dist/ol.min.js"
+        integrity="sha512-DXKETYCnjLJsrFicaAL50eXquDCKms2G3kk5MFAakPdC0F5Y/P6SLGvmo5+HsqShst5ZCM/VSzgzOoBbQ/aJkw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <script>
+        // Initialize the map once the page is loaded
+        document.addEventListener('DOMContentLoaded', function () {
+            const key = '--';
+            const url = 'https://api.maptiler.com/tiles/v3-4326/{z}/{x}/{y}.pbf?key=' + key;
+
+            // Match the server resolutions
+            const tileGrid = ol.tilegrid.createXYZ({
+                extent: [-180, -90, 180, 90],
+                tileSize: 512,
+                maxResolution: 180 / 512,
+                maxZoom: 13,
+            });
+
+            const baseStyleFunction = (feature) => {
+                const layer = feature.get('layer');
+
+                if (layer === 'water' || layer === 'waterway') {
+                    return new ol.style.Style({
+                        fill: new ol.style.Fill({
+                            color: '#b3d1ff'
+                        }),
+                        stroke: new ol.style.Stroke({
+                            color: '#b3d1ff',
+                            width: 1
+                        })
+                    });
+                }
+
+                if (layer === 'landcover') {
+                    let color = '#f2f2f2';
+
+                    return new ol.style.Style({
+                        fill: new ol.style.Fill({
+                            color: color
+                        })
+                    });
+                }
+
+                if (layer === 'landuse') {
+                    return new ol.style.Style({
+                        fill: new ol.style.Fill({
+                            color: '#f2f2f2'
+                        })
+                    });
+                }
+
+                if (layer === 'place' || layer === 'poi' || layer === 'boundary' || layer === 'park') {
+                    return undefined;
+                }
+
+                return new ol.style.Style({
+                    fill: new ol.style.Fill({
+                        color: '#f2f2f2'
+                    })
+                });
+            };
+
+            const baseLayer = new ol.layer.VectorTile({
+                declutter: true,
+                source: new ol.source.VectorTile({
+                    format: new ol.format.MVT(),
+                    url: url,
+                    projection: 'EPSG:4326',
+                    maxZoom: 18,
+                    tileGrid: tileGrid
+                }),
+                style: baseStyleFunction
+            });
+
+            const map = new ol.Map({
+                target: 'map',
+                layers: [baseLayer],
+                view: new ol.View({
+                    projection: 'EPSG:4326',
+                    zoom: 0,
+                    center: [0, 30],
+                }),
+            });
+
+            const labelStyleFunction = (feature) => {
+                const layer = feature.get('layer');
+
+                // Only show labels at appropriate zoom levels
+                const zoom = map.getView().getZoom();
+                if (!zoom) return undefined;
+
+                if (layer === 'boundary') {
+                    // Handle state and country boundaries
+                    if (feature.get('admin_level') === 4) {
+                        if (zoom < 6) return undefined;
+                        return new ol.style.Style({
+                            stroke: new ol.style.Stroke({
+                                color: '#333333',
+                                width: 1,
+                                lineDash: undefined
+                            })
+                        });
+                    } else if (feature.get('admin_level') === 2) {
+                        if (zoom > 8) return undefined;
+                        return new ol.style.Style({
+                            stroke: new ol.style.Stroke({
+                                color: '#333333',
+                                width: 1,
+                                lineDash: undefined
+                            })
+                        });
+                    }
+                } else if (layer !== 'place') {
+                    return undefined;
+                } else {
+                    const name = feature.get('name:en');
+                    const class_ = feature.get('class');
+
+                    // Adjust font size and visibility based on place type and zoom
+                    let fontSize = '12px';
+                    let minZoom = 0;
+
+                    switch (class_) {
+                        case 'country':
+                            fontSize = '12px';
+                            minZoom = 2;
+                            maxZoom = 6;
+                            break;
+                        case 'state':
+                            fontSize = '12px';
+                            minZoom = 6;
+                            maxZoom = 12;
+                            break;
+                        default:
+                            return undefined;
+                    }
+
+                    if (zoom < minZoom) return undefined;
+                    if (zoom > maxZoom) return undefined;
+
+                    return new ol.style.Style({
+                        text: new ol.style.Text({
+                            text: name,
+                            font: `${fontSize} 'Open Sans', sans-serif`,
+                            fill: new ol.style.Fill({
+                                color: '#000000'
+                            }),
+                            stroke: new ol.style.Stroke({
+                                color: '#ffffff',
+                                width: 3
+                            }),
+                            textAlign: 'center',
+                            textBaseline: 'middle',
+                            padding: [3, 3, 3, 3],
+                            offsetX: 0,
+                            offsetY: 0,
+                            placement: 'point',
+                            overflow: true,
+                            maxAngle: 45,
+                            scale: 1.0,
+                        })
+                    });
+                }
+            };
+
+            const labelsLayer = new ol.layer.VectorTile({
+                declutter: true,
+                source: new ol.source.VectorTile({
+                    format: new ol.format.MVT(),
+                    url: url,
+                    projection: 'EPSG:4326',
+                    maxZoom: 18,
+                    tileGrid: tileGrid
+                }),
+                style: labelStyleFunction
+            });
+            map.getLayers().insertAt(1, labelsLayer);
+
+            // load a GOSIF image converted to a colormapped GeoPNG
+            async function loadGeoPNG(pngUrl, metadataUrl) {
+                try {
+                    const metadataResponse = await fetch(metadataUrl);
+                    const metadata = await metadataResponse.json();
+
+                    // Create an extent array from the bounds
+                    const bounds = metadata.bounds;
+                    const extent = [bounds.left, bounds.bottom, bounds.right, bounds.top];
+
+                    // Create a new image layer using the PNG
+                    const sifLayer = new ol.layer.Image({
+                        source: new ol.source.ImageStatic({
+                            url: pngUrl,
+                            imageExtent: extent,
+                            projection: metadata.crs || 'EPSG:4326'
+                        }),
+                        opacity: 0.9
+                    });
+                    map.getLayers().insertAt(1, sifLayer);
+                } catch (error) {
+                    console.error('Error loading colormapped PNG:', error);
+                }
+            }
+
+            const pngFile = 'data/GOSIF_2020.M06.png';
+            const metadataFile = 'data/GOSIF_2020.M06_metadata.json';
+            loadGeoPNG(pngFile, metadataFile);
+
+        });
+    </script>
+</body>
+
+</html>

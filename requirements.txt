@@ -8,6 +8,7 @@ notebook
 numpy
 pydap
 python-dotenv
+rasterio
 requests
 requests-cache
 tqdm
