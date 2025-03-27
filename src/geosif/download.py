@@ -683,6 +683,8 @@ def download_gosif_granule(
         output_filename = os.path.basename(url)
         output_path = os.path.join(output_dir, output_filename)
 
+        if os.path.exists(output_path):
+            return output_path
         granule_name = download_file(url, output_path, verbose)
     except Exception as e:
         print(f"Unexpected error: {e}")

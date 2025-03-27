@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenLayers Map Example</title>
+    <title>GOSIF Viewer</title>
     <!-- Import OpenLayers CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/openlayers/10.3.1/ol.min.css"
         integrity="sha512-oVyisN6T8O7H9DnBc1w/IipxzLhNvJERKa0Rx9fKEtaodE7UXQAypIHamYzQPAqVxp0pVl25e4spVQWIVfu6eA=="
@@ -14,6 +14,7 @@
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
         }
 
         .map-container {
@@ -26,12 +27,56 @@
             width: 100%;
             height: 100%;
         }
+
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .info-panel h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .info-panel p {
+            margin: 5px 0;
+        }
+
+        .file-btn {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 8px;
+            padding: 2px 6px;
+            vertical-align: middle;
+        }
+        
+        .file-btn:hover {
+            background-color: #e0e0e0;
+        }
     </style>
 </head>
 
 <body>
     <div class="map-container">
         <div id="map"></div>
+        <div class="info-panel" id="infoPanel">
+            <h3>Estimated SIF</h3>
+            <p id="currentFile">Loading...</p>
+            <button id="changeFileBtn" class="file-btn" title="Change file">📂</button>
+            <input type="file" id="fileInput" accept=".png" style="display: none;" />
+        </div>
     </div>
 
     <!-- Import OpenLayers JS -->
@@ -42,8 +87,17 @@
     <script>
         // Initialize the map once the page is loaded
         document.addEventListener('DOMContentLoaded', function () {
-            const key = '--';
-            const url = 'https://api.maptiler.com/tiles/v3-4326/{z}/{x}/{y}.pbf?key=' + key;
+            // Parse URL query parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const pngFile = urlParams.get('file');
+            
+            // Generate metadata file name by replacing the .png extension with _metadata.json
+            const metadataFile = pngFile.replace('.png', '_metadata.json');
+            
+            // Update info panel
+            document.getElementById('currentFile').textContent = `Current file: ${pngFile.split('/').pop()}`;
+
+            const url = 'https://www.jackiepi.xyz/tiles-4326/{z}/{x}/{y}.pbf';
 
             // Match the server resolutions
             const tileGrid = ol.tilegrid.createXYZ({
@@ -69,11 +123,9 @@
                 }
 
                 if (layer === 'landcover') {
-                    let color = '#f2f2f2';
-
                     return new ol.style.Style({
                         fill: new ol.style.Fill({
-                            color: color
+                            color: '#f2f2f2'
                         })
                     });
                 }
@@ -161,9 +213,14 @@
                         case 'country':
                             fontSize = '12px';
                             minZoom = 2;
-                            maxZoom = 6;
+                            maxZoom = 12;
                             break;
                         case 'state':
+                            fontSize = '12px';
+                            minZoom = 6;
+                            maxZoom = 12;
+                            break;
+                        case 'province':
                             fontSize = '12px';
                             minZoom = 6;
                             maxZoom = 12;
@@ -213,10 +270,54 @@
             });
             map.getLayers().insertAt(1, labelsLayer);
 
+            function generateTitle(filename) {
+                const baseFileName = filename.split('/').pop();
+                
+                // Extract the part after GOSIF_
+                const parts = baseFileName.split('_');
+                if (parts.length < 2) return "Estimated SIF";
+                
+                const dataInfo = parts[1].split('.')[0]; // Get the part before any dots
+                
+                // Pattern 1: Year with doy (GOSIF_2011057.png)
+                if (/^\d{7}$/.test(dataInfo)) {
+                    const year = dataInfo.substring(0, 4);
+                    const dayOfYear = parseInt(dataInfo.substring(4), 10);
+                    
+                    // Convert day of year to date
+                    const date = new Date(parseInt(year), 0, dayOfYear);
+                    const month = date.toLocaleString('default', { month: 'long' });
+                    const day = date.getDate();
+                    
+                    return `Est. 8-day Average SIF for ${month} ${day} ${year}`;
+                }
+                
+                // Pattern 2: Year with month (GOSIF_2011.M06.png)
+                const monthMatch = baseFileName.match(/(\d{4})\.M(\d{2})/);
+                if (monthMatch) {
+                    const year = monthMatch[1];
+                    const month = parseInt(monthMatch[2], 10);
+                    const monthName = new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' });
+                    
+                    return `Est. Monthly Average SIF for ${monthName} ${year}`;
+                }
+
+                // Pattern 3: Year only (GOSIF_2011.png)
+                if (/^\d{4}$/.test(dataInfo)) {
+                    return `Est. Annual Average SIF for ${dataInfo}`;
+                }
+                
+                // Default case
+                return "Estimated SIF";
+            }
+
             // load a GOSIF image converted to a colormapped GeoPNG
             async function loadGeoPNG(pngUrl, metadataUrl) {
                 try {
                     const metadataResponse = await fetch(metadataUrl);
+                    if (!metadataResponse.ok) {
+                        throw new Error(`Failed to load metadata: ${metadataResponse.status} ${metadataResponse.statusText}`);
+                    }
                     const metadata = await metadataResponse.json();
 
                     // Create an extent array from the bounds
@@ -230,17 +331,98 @@
                             imageExtent: extent,
                             projection: metadata.crs || 'EPSG:4326'
                         }),
-                        opacity: 0.9
+                        opacity: 1.0
                     });
+
+                    // Remove any existing SIF layer (in case we're loading a new one)
+                    const layers = map.getLayers().getArray();
+                    for (let i = layers.length - 1; i >= 0; i--) {
+                        if (layers[i].get('name') === 'sifLayer') {
+                            map.getLayers().removeAt(i);
+                        }
+                    }
+                    
+                    // Add name property to identify this layer later
+                    sifLayer.set('name', 'sifLayer');
+                    
                     map.getLayers().insertAt(1, sifLayer);
                 } catch (error) {
                     console.error('Error loading colormapped PNG:', error);
                 }
+
+                try {
+                    const title = generateTitle(pngUrl);
+
+                    document.getElementById('infoPanel').innerHTML = `
+                        <h3>${title}</h3>
+                        <p>
+                            File: ${pngUrl.split('/').pop()}
+                            <button id="changeFileBtn" class="file-btn" title="Change file">📂</button>
+                        </p>
+                        <input type="file" id="fileInput" accept=".png" style="display: none;" />
+                    `;
+                    setupFileSelector();
+                } catch (error) {
+                    console.error('Error loading colormapped PNG:', error);
+                    // Generate title even for error cases
+                    const title = generateTitle(pngUrl);
+                    
+                    document.getElementById('infoPanel').innerHTML = `
+                        <h3>${title}</h3>
+                        <p>
+                            File: ${pngUrl.split('/').pop()}
+                            <button id="changeFileBtn" class="file-btn" title="Change file">📂</button>
+                        </p>
+                        <input type="file" id="fileInput" accept=".png" style="display: none;" />
+                        <p style="color: red;">Error loading data: ${error.message}</p>
+                        <p>Please check if the file exists and try again.</p>
+                    `;
+                    setupFileSelector();
+                }
             }
 
-            const pngFile = 'data/GOSIF_2020.M06.png';
-            const metadataFile = 'data/GOSIF_2020.M06_metadata.json';
             loadGeoPNG(pngFile, metadataFile);
+            
+            window.changeLayer = function(newPngFile) {
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.set('file', newPngFile);
+                window.history.pushState({}, '', newUrl);
+                
+                const newMetadataFile = newPngFile.replace('.png', '_metadata.json');
+                loadGeoPNG(newPngFile, newMetadataFile);
+            };
+
+            function setupFileSelector() {
+                const changeFileBtn = document.getElementById('changeFileBtn');
+                const fileInput = document.getElementById('fileInput');
+                
+                if (changeFileBtn && fileInput) {
+                    // Open file dialog when button is clicked
+                    changeFileBtn.addEventListener('click', () => {
+                        fileInput.click();
+                    });
+                    
+                    // Handle file selection
+                    fileInput.addEventListener('change', (event) => {
+                        if (event.target.files.length > 0) {
+                            const file = event.target.files[0];
+                            
+                            // Check if it's a PNG file
+                            if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
+                                const baseDir = pngFile.substring(0, pngFile.lastIndexOf('/') + 1);
+                                const newFilePath = baseDir + file.name;
+                                
+                                // Change the layer
+                                window.changeLayer(newFilePath);
+                            } else {
+                                alert('Please select a PNG file.');
+                            }
+                        }
+                    });
+                }
+            }
+            
+            setupFileSelector();
 
         });
     </script>

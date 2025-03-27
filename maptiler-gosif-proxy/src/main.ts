@@ -95,24 +95,24 @@ export default {
                 });
             }
 
-            // Clone the response so we can modify headers before caching
-            const clonedResponse = new Response(response.body, response);
+            // Clone the response first so we can use it multiple times
+            const responseClone = response.clone();
             
-            // Set appropriate cache headers
-            const responseHeaders = new Headers(clonedResponse.headers);
+            // Set appropriate cache headers for the final response
+            const responseHeaders = new Headers(response.headers);
             responseHeaders.set("Content-Type", "application/x-protobuf");
             responseHeaders.set("Access-Control-Allow-Origin", "*");
             responseHeaders.set("Cache-Control", "public, max-age=86400"); // 1 day
             responseHeaders.set("CF-Cache-Status", "MISS");
             
             // Create the response we'll return to the client
-            const finalResponse = new Response(clonedResponse.body, {
+            const finalResponse = new Response(response.body, {
                 status: 200,
                 headers: responseHeaders,
             });
 
-            // Create a new response for the cache (we need to clone again because response bodies can only be used once)
-            const cacheResponse = new Response(response.clone().body, {
+            // Create a new response for the cache with the cloned body
+            const cacheResponse = new Response(responseClone.body, {
                 status: 200,
                 headers: {
                     "Content-Type": "application/x-protobuf",
@@ -124,8 +124,12 @@ export default {
             ctx.waitUntil(cache.put(cacheKey, cacheResponse));
 
             return finalResponse;
-        } catch (error) {
-            return new Response(`Error fetching tile: ${error.message}`, {
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error 
+                ? error.message 
+                : 'Unknown error occurred';
+                
+            return new Response(`Error fetching tile: ${errorMessage}`, {
                 status: 500,
                 headers: { "Access-Control-Allow-Origin": "*" },
             });
