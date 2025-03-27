@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import math
 import os
 from pathlib import Path
 from pydap.client import open_url
@@ -539,6 +540,155 @@ class GesDiscDownloader:
                     failed_downloads.append(url)
 
         return (downloaded_files, notfound_dates, failed_downloads)
+
+
+def download_file(url: str, output_path: str, verbose: bool = False):
+    """
+    Download a file from the specified URL to the output path. Very similar to
+    GesdiscDataDownloader._download_file, but does not rely on an authenticated
+    session.
+
+    Args:
+        url (str): URL to download
+        output_path (str): Path to save the downloaded file
+        verbose (bool, optional): Enable verbose output
+
+    Returns:
+        bool: True if download was successful, False otherwise
+    """
+    try:
+        if verbose:
+            print(f"Downloading from {url}...")
+
+        response = requests.get(url, stream=True)
+        response.raise_for_status()  # Raise an exception if not a 2xx response
+
+        total_size = int(response.headers.get("content-length", 0))
+
+        with open(output_path, "wb") as f:
+            if verbose and total_size > 0:
+                print(f"Total file size: {total_size / (1024 * 1024):.2f} MB")
+
+            downloaded = 0
+
+            for chunk in tqdm(
+                response.iter_content(chunk_size=8192),
+                total=round(total_size / 8192),
+                desc="Downloading file",
+            ):
+                f.write(chunk)
+                downloaded += len(chunk)
+
+        if verbose:
+            print(f"Successfully downloaded: {output_path}")
+        return output_path
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading {url}: {e}")
+        return ""
+
+
+def construct_unh_url(base_url, dataset, year, month=None, day=None, verbose=False):
+    """
+    Construct the appropriate URL on the UNH data store based on the provided parameters.
+
+    Arguments:
+        base_url (str): Base URL for the UNH server
+        dataset (str): Dataset name (e.g., GOSIF_v2)
+        year (int): Year to download data for
+        month (int, optional): Month to download data for (1-12)
+        day (int, optional): Day to download data for (1-31)
+        verbose (bool, optional): Enable verbose output
+
+    Returns:
+        str: URL for the requested data file
+    """
+    # Base URL for the dataset
+    dataset_url = urljoin(base_url, dataset + "/")
+
+    # Remove "_v2" from dataset name if present for filename construction
+    filename_dataset = dataset.replace("_v2", "")
+
+    if month is None and day is None:
+        # Annual data
+        resolution_path = "Annual/"
+        filename = f"{filename_dataset}_{year}.tif.gz"
+        if verbose:
+            print(f"Requesting annual data for {year}")
+    elif month is not None and day is None:
+        # Monthly data
+        resolution_path = "Monthly/"
+        filename = f"{filename_dataset}_{year}.M{month:02d}.tif.gz"
+        if verbose:
+            print(f"Requesting monthly data for {year}-{month:02d}")
+    elif month is None and day is not None:
+        pass
+    else:
+        # 8day data - need to calculate day of year
+        resolution_path = "8day/"
+        date = datetime.date(year, month, day)
+        day_of_year = int(date.strftime("%j"))  # Day of year as integer
+
+        # For 8-day data, find the nearest 8-day period
+        # The 8-day periods are: 1-8, 9-16, 17-24, etc.
+        # So the representative days are 1, 9, 17, 25, etc.
+        nearest_8day = 1 + 8 * math.floor((day_of_year - 1) / 8)
+
+        filename = f"{filename_dataset}_{year}{nearest_8day:03d}.tif.gz"
+        if verbose:
+            print(
+                f"Requesting 8-day data for {year}-{month:02d}-{day:02d} (DOY {day_of_year}, nearest 8-day period starting at DOY {nearest_8day})"
+            )
+
+    file_url = urljoin(dataset_url, resolution_path + filename)
+
+    return file_url
+
+
+def download_gosif_granule(
+    year: int,
+    month: int | None = None,
+    day: int | None = None,
+    dataset: str = "GOSIF_v2",
+    output_dir: str | None = None,
+    verbose: bool = True,
+) -> str:
+    """
+    Download a granule for the UNH global ecology data store, mostly for downloading
+    GOSIF data.
+
+    Arguments:
+        year (int): Year of granule data. If no other date info is provided, will
+            download the annual product.
+        month (int): Month of granule data. If no day is provided, will download the
+            Monthly product.
+        day (int): Day of the granule data. Will find the closest match to the 8-day
+            cadence. If no month is provided, day will be treated as a day of year.
+        dataset (str): Specify the name of the dataset, default is GOSIF_v2
+        output_dir (str): Path to store the downloaded granule. Default is cwd.
+
+    Returns:
+        str: Path of downloaded granule.
+    """
+    base_url = "https://data.globalecology.unh.edu/data/"
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    else:
+        output_dir = os.getcwd()
+
+    try:
+        # Construct the URL
+        url = construct_unh_url(base_url, dataset, year, month, day, verbose)
+
+        # Determine the output filename
+        output_filename = os.path.basename(url)
+        output_path = os.path.join(output_dir, output_filename)
+
+        granule_name = download_file(url, output_path, verbose)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return ""
+
+    return granule_name
 
 
 if __name__ == "__main__":
