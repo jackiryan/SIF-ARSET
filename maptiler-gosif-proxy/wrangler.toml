@@ -1,0 +1,7 @@
+compatibility_date = "2025-03-21"
+main = "src/main.ts"
+name = "maptiler-gosif-proxy"
+
+routes = [
+    {pattern = "www.jackiepi.xyz/tiles-4326/*", zone_name = "jackiepi.xyz"}
+]
