@@ -61,9 +61,57 @@
             padding: 2px 6px;
             vertical-align: middle;
         }
-        
+
         .file-btn:hover {
             background-color: #e0e0e0;
+        }
+
+        .colorbar-container {
+            position: absolute;
+            bottom: 25px;
+            right: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .colorbar {
+            width: 30px;
+            height: 200px;
+            margin: 10px 10px;
+            position: relative;
+        }
+
+        .colorbar-labels {
+            position: relative;
+            height: 200px;
+            margin-left: 5px;
+        }
+
+        .colorbar-label {
+            position: absolute;
+            right: -20px;
+            transform: translateY(100%);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .colorbar-title {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        .colorbar-units {
+            font-size: 12px;
+            margin-top: 5px;
+            text-align: center;
         }
     </style>
 </head>
@@ -71,11 +119,21 @@
 <body>
     <div class="map-container">
         <div id="map"></div>
+
         <div class="info-panel" id="infoPanel">
             <h3>Estimated SIF</h3>
             <p id="currentFile">Loading...</p>
             <button id="changeFileBtn" class="file-btn" title="Change file">📂</button>
             <input type="file" id="fileInput" accept=".png" style="display: none;" />
+        </div>
+
+        <div class="colorbar-container" id="colorbarContainer">
+            <div class="colorbar-title">SIF Value</div>
+            <div style="display: flex; flex-direction: row; width: 75px;">
+                <div class="colorbar" id="colorbar"></div>
+                <div class="colorbar-labels" id="colorbarLabels"></div>
+            </div>
+            <div class="colorbar-units">W/m²/sr/μm</div>
         </div>
     </div>
 
@@ -90,10 +148,10 @@
             // Parse URL query parameters
             const urlParams = new URLSearchParams(window.location.search);
             const pngFile = urlParams.get('file');
-            
+
             // Generate metadata file name by replacing the .png extension with _metadata.json
             const metadataFile = pngFile.replace('.png', '_metadata.json');
-            
+
             // Update info panel
             document.getElementById('currentFile').textContent = `Current file: ${pngFile.split('/').pop()}`;
 
@@ -272,33 +330,33 @@
 
             function generateTitle(filename) {
                 const baseFileName = filename.split('/').pop();
-                
+
                 // Extract the part after GOSIF_
                 const parts = baseFileName.split('_');
                 if (parts.length < 2) return "Estimated SIF";
-                
+
                 const dataInfo = parts[1].split('.')[0]; // Get the part before any dots
-                
+
                 // Pattern 1: Year with doy (GOSIF_2011057.png)
                 if (/^\d{7}$/.test(dataInfo)) {
                     const year = dataInfo.substring(0, 4);
                     const dayOfYear = parseInt(dataInfo.substring(4), 10);
-                    
+
                     // Convert day of year to date
                     const date = new Date(parseInt(year), 0, dayOfYear);
                     const month = date.toLocaleString('default', { month: 'long' });
                     const day = date.getDate();
-                    
+
                     return `Est. 8-day Average SIF for ${month} ${day} ${year}`;
                 }
-                
+
                 // Pattern 2: Year with month (GOSIF_2011.M06.png)
                 const monthMatch = baseFileName.match(/(\d{4})\.M(\d{2})/);
                 if (monthMatch) {
                     const year = monthMatch[1];
                     const month = parseInt(monthMatch[2], 10);
                     const monthName = new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' });
-                    
+
                     return `Est. Monthly Average SIF for ${monthName} ${year}`;
                 }
 
@@ -306,9 +364,56 @@
                 if (/^\d{4}$/.test(dataInfo)) {
                     return `Est. Annual Average SIF for ${dataInfo}`;
                 }
-                
+
                 // Default case
                 return "Estimated SIF";
+            }
+
+            // load and update colorbar
+            function updateColorbar(minValue, maxValue) {
+                const colorbar = document.getElementById('colorbar');
+                const colorbarLabels = document.getElementById('colorbarLabels');
+
+                // Clear existing labels
+                colorbarLabels.innerHTML = '';
+
+                // Viridis colormap
+                const colors = [
+                    'rgb(68, 1, 84)',      // Dark purple
+                    'rgb(70, 50, 126)',    // Purple
+                    'rgb(54, 92, 141)',    // Dark blue
+                    'rgb(39, 127, 142)',   // Blue-green
+                    'rgb(31, 161, 135)',   // Teal
+                    'rgb(74, 193, 109)',   // Green
+                    'rgb(147, 213, 72)',   // Light green
+                    'rgb(216, 226, 25)',   // Yellow-green
+                    'rgb(253, 231, 37)'    // Yellow
+                ];
+
+                // Create gradient string
+                const gradientStops = colors.map((color, i) => {
+                    return `${color} ${(i / (colors.length - 1)) * 100}%`;
+                }).join(', ');
+
+                // Apply gradient to colorbar
+                colorbar.style.background = `linear-gradient(to top, ${gradientStops})`;
+
+                // Add labels at regular intervals
+                const numLabels = 6; // Number of labels to show
+                for (let i = 0; i < numLabels; i++) {
+                    const value = minValue + (maxValue - minValue) * (i / (numLabels - 1));
+                    const roundedValue = Math.round(value * 100) / 100; // Round to 2 decimal places
+
+                    const label = document.createElement('div');
+                    label.className = 'colorbar-label';
+                    label.textContent = roundedValue.toFixed(2);
+                    label.style.bottom = `${(i / (numLabels - 1)) * 100}%`;
+
+                    colorbarLabels.appendChild(label);
+                }
+
+                // Update colorbar title
+                document.querySelector('.colorbar-title').textContent = 'SIF Value';
             }
 
             // load a GOSIF image converted to a colormapped GeoPNG
@@ -341,11 +446,23 @@
                             map.getLayers().removeAt(i);
                         }
                     }
-                    
+
                     // Add name property to identify this layer later
                     sifLayer.set('name', 'sifLayer');
-                    
+
                     map.getLayers().insertAt(1, sifLayer);
+
+                    // Update the colorbar with data ranges from metadata
+                    // Check if metadata contains data range information
+                    if (metadata.dataRange) {
+                        updateColorbar(metadata.dataRange.min, metadata.dataRange.max);
+                    } else {
+                        // Default SIF range if not provided
+                        updateColorbar(0, 2);
+                    }
+
+                    // Show the colorbar
+                    document.getElementById('colorbarContainer').style.display = 'flex';
                 } catch (error) {
                     console.error('Error loading colormapped PNG:', error);
                 }
@@ -366,7 +483,7 @@
                     console.error('Error loading colormapped PNG:', error);
                     // Generate title even for error cases
                     const title = generateTitle(pngUrl);
-                    
+
                     document.getElementById('infoPanel').innerHTML = `
                         <h3>${title}</h3>
                         <p>
@@ -382,12 +499,12 @@
             }
 
             loadGeoPNG(pngFile, metadataFile);
-            
-            window.changeLayer = function(newPngFile) {
+
+            window.changeLayer = function (newPngFile) {
                 const newUrl = new URL(window.location.href);
                 newUrl.searchParams.set('file', newPngFile);
                 window.history.pushState({}, '', newUrl);
-                
+
                 const newMetadataFile = newPngFile.replace('.png', '_metadata.json');
                 loadGeoPNG(newPngFile, newMetadataFile);
             };
@@ -395,23 +512,23 @@
             function setupFileSelector() {
                 const changeFileBtn = document.getElementById('changeFileBtn');
                 const fileInput = document.getElementById('fileInput');
-                
+
                 if (changeFileBtn && fileInput) {
                     // Open file dialog when button is clicked
                     changeFileBtn.addEventListener('click', () => {
                         fileInput.click();
                     });
-                    
+
                     // Handle file selection
                     fileInput.addEventListener('change', (event) => {
                         if (event.target.files.length > 0) {
                             const file = event.target.files[0];
-                            
+
                             // Check if it's a PNG file
                             if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
                                 const baseDir = pngFile.substring(0, pngFile.lastIndexOf('/') + 1);
                                 const newFilePath = baseDir + file.name;
-                                
+
                                 // Change the layer
                                 window.changeLayer(newFilePath);
                             } else {
@@ -421,9 +538,8 @@
                     });
                 }
             }
-            
-            setupFileSelector();
 
+            setupFileSelector();
         });
     </script>
 </body>
