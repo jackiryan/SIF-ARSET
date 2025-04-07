@@ -1,6 +1,10 @@
-# GEOSIF-ARSET
+# SIF-ARSET: Introduction to Solar-Induced Fluorescence (SIF) Data
 
-This repository is intended to contain code for the upcoming ARSET training session on using OCO-3 SIF data to reproduce the technique described in the [GEOSIF](https://doi.org/10.1016/j.rse.2024.114284) paper by Jeong et al.
+This repository contains code for the upcoming ARSET training session on using solar-induced fluorescence (SIF) data from the OCO-2 and OCO-3 missions to study plant behavior and health at an ecosystem level. In this training we discuss:
+
+1. **exploration.ipynb**: Methods for retrieving and spatially gridding SIF data to get a sense of the observational record. In this exercise we reproduce monthly gridded plots like those that are found in [Doughty et al.](https://doi.org/10.5194/essd-14-1513-2022) 
+2. **gosif.ipynb**: One way to look at SIF with consistent spatial coverage, and the limitations of such a technique. In this exercise we retrieve and discuss data from the Drs. Xing Li and Jingfeng Xiao's 2019 [GOSIF paper](https://doi.org/10.3390/rs11050517).
+3. **ann-sif.ipynb** (not yet implemented): Another way to look at SIF over a wide area, this time being able to look at diurnal variation at the expense of spatial resolution. In this exercise we will reproduce and discuss results from [Zhang et al.](https://doi.org/10.1016/j.rse.2022.113383)
 
 ## Prerequisites
 
@@ -9,8 +13,8 @@ This repository is intended to contain code for the upcoming ARSET training sess
 Open a new terminal window and navigate to the directory you would like to work in for this training. Once you are in that directory, enter the following command to download the repository:
 
 ```bash
-git clone https://github.com/jackiryan/GEOSIF-ARSET
-cd GEOSIF-ARSET
+git clone https://github.com/jackiryan/SIF-ARSET
+cd SIF-ARSET
 ```
 
 Alternatively, you may wish to use [GitHub Desktop](https://desktop.github.com/download/) which does not require the command line. In the GitHub Desktop app, you would click the "Current Repository" dropdown, then select "Add", then "Clone Repository..." (Shift+Cmd+O on MacOS) and select this repo (you may need to have it starred for it to appear in the list of options). 
@@ -47,7 +51,7 @@ The provided setup script will install the required packages **and open the note
 .\setup.ps1
 ```
 
-If you would like to just open the notebook on subsequent uses, assuming your environment is set up, simply run the following command from the `GEOSIF-ARSET` directory:
+If you would like to just open the notebook on subsequent uses, assuming your environment is set up, simply run the following command from the `SIF-ARSET` directory:
 
 ```bash
 jupyter lab notebooks/exploration.ipynb
