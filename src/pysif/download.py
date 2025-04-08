@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import gzip
 import math
 import os
 from pathlib import Path
@@ -33,6 +34,7 @@ import pydap.lib
 import re
 import requests
 import requests_cache
+import shutil
 from tqdm.notebook import tqdm
 from urllib.parse import urljoin, urlparse
 from urllib3.util.retry import Retry
@@ -691,6 +693,19 @@ def download_gosif_granule(
         return ""
 
     return granule_name
+
+
+def download_unpack_gosif(year: int, month: int, output_dir: str) -> str:
+    # The file is a .gz (gzip) archive, so it will need to be extracted before we can use it
+    gosif_gz = download_gosif_granule(year, month, output_dir=output_dir)
+
+    # Strip .gz file extension from the downloaded file to get the output (extracted) filename
+    gosif_geotiff = os.path.splitext(gosif_gz)[0]
+    with gzip.open(gosif_gz, "rb") as f_in:
+        with open(gosif_geotiff, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    print(f"Unpacked geotiff file: {gosif_geotiff}")
+    return gosif_geotiff
 
 
 if __name__ == "__main__":

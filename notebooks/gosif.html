@@ -452,6 +452,27 @@
 
                     map.getLayers().insertAt(1, sifLayer);
 
+                    // Center and zoom the map to the image extent
+                    // Create a projection object for the image
+                    const imageProjection = ol.proj.get(metadata.crs || 'EPSG:4326');
+                    
+                    // If the map's view projection is different from the image projection,
+                    // transform the extent to the view's projection
+                    const viewProjection = map.getView().getProjection();
+                    let transformedExtent = extent;
+                    
+                    if (imageProjection !== viewProjection) {
+                        transformedExtent = ol.proj.transformExtent(extent, imageProjection, viewProjection);
+                    }
+                    
+                    // Use fit() to center and zoom the map to the image extent
+                    // Adding some padding to ensure the entire image is visible
+                    map.getView().fit(transformedExtent, {
+                        padding: [20, 20, 20, 20], // Add padding (in pixels) around the extent
+                        duration: 1000,            // Animation duration in milliseconds
+                        maxZoom: 19               // Limit maximum zoom level to prevent zooming in too far
+                    });
+
                     // Update the colorbar with data ranges from metadata
                     // Check if metadata contains data range information
                     if (metadata.dataRange) {
