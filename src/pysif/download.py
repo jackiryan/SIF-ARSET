@@ -623,12 +623,9 @@ def construct_unh_url(base_url, dataset, year, month=None, day=None, verbose=Fal
         if verbose:
             print(f"Requesting monthly data for {year}-{month:02d}")
     elif month is None and day is not None:
-        pass
-    else:
-        # 8day data - need to calculate day of year
+        # 8day data - since month is none assume day is doy
         resolution_path = "8day/"
-        date = datetime.date(year, month, day)
-        day_of_year = int(date.strftime("%j"))  # Day of year as integer
+        day_of_year = day
 
         # For 8-day data, find the nearest 8-day period
         # The 8-day periods are: 1-8, 9-16, 17-24, etc.
@@ -638,7 +635,20 @@ def construct_unh_url(base_url, dataset, year, month=None, day=None, verbose=Fal
         filename = f"{filename_dataset}_{year}{nearest_8day:03d}.tif.gz"
         if verbose:
             print(
-                f"Requesting 8-day data for {year}-{month:02d}-{day:02d} (DOY {day_of_year}, nearest 8-day period starting at DOY {nearest_8day})"
+                f"Requesting 8-day data for {year}-{nearest_8day:03d} (DOY {nearest_8day:03d})"
+            )
+    else:
+        # 8day data - need to calculate day of year
+        resolution_path = "8day/"
+        date = datetime.date(year, month, day)
+        day_of_year = int(date.strftime("%j"))  # Day of year as integer
+
+        nearest_8day = 1 + 8 * math.floor((day_of_year - 1) / 8)
+
+        filename = f"{filename_dataset}_{year}{nearest_8day:03d}.tif.gz"
+        if verbose:
+            print(
+                f"Requesting 8-day data for {year}-{month:02d}-{day:02d} (DOY {nearest_8day:03d})"
             )
 
     file_url = urljoin(dataset_url, resolution_path + filename)
@@ -667,6 +677,7 @@ def download_gosif_granule(
             cadence. If no month is provided, day will be treated as a day of year.
         dataset (str): Specify the name of the dataset, default is GOSIF_v2
         output_dir (str): Path to store the downloaded granule. Default is cwd.
+        verbose (bool): Print additional information. Default is True.
 
     Returns:
         str: Path of downloaded granule.
@@ -695,16 +706,40 @@ def download_gosif_granule(
     return granule_name
 
 
-def download_unpack_gosif(year: int, month: int, output_dir: str) -> str:
+def download_unpack_gosif(year: int,
+                          month: int | None = None,
+                          day: int | None = None,
+                          dataset: str = "GOSIF_v2",
+                          output_dir: str | None = None,
+                          verbose: bool = True
+    ) -> str:
+    """
+    Download and unzip a GOSIF granule from the UNH data store.
+
+    Arguments:
+        year (int): Year of granule data. If no other date info is provided, will
+            download the annual product.
+        month (int): Month of granule data. If no day is provided, will download the
+            Monthly product.
+        day (int): Day of the granule data. Will find the closest match to the 8-day
+            cadence. If no month is provided, day will be treated as a day of year.
+        dataset (str): Specify the name of the dataset, default is GOSIF_v2
+        output_dir (str): Path to store the downloaded granule. Default is cwd.
+        verbose (bool): Print additional information. Default is True.
+
+    Returns:
+        str: Path of downloaded granule.
+    """
     # The file is a .gz (gzip) archive, so it will need to be extracted before we can use it
-    gosif_gz = download_gosif_granule(year, month, output_dir=output_dir)
+    gosif_gz = download_gosif_granule(year, month, day, dataset, output_dir, verbose)
 
     # Strip .gz file extension from the downloaded file to get the output (extracted) filename
     gosif_geotiff = os.path.splitext(gosif_gz)[0]
     with gzip.open(gosif_gz, "rb") as f_in:
         with open(gosif_geotiff, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
-    print(f"Unpacked geotiff file: {gosif_geotiff}")
+    if verbose:
+        print(f"Unpacked geotiff file: {gosif_geotiff}")
     return gosif_geotiff
 
 

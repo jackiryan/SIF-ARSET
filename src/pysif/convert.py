@@ -63,6 +63,8 @@ def convert_geotiff_to_png(
     Returns:
         A bool True or False on success or failure to convert the image.
     """
+    png_dir = os.path.dirname(output_png_path)
+    os.makedirs(png_dir, exist_ok=True)
     # Automatically determine the metadata name, since it should match the png
     fname_noext = os.path.splitext(output_png_path)[0]
     output_metadata_path = fname_noext + "_metadata.json"
