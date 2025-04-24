@@ -18,18 +18,21 @@ def get_month_name(year, doy):
     return date.strftime("%B")
 
 # Directories
-input_dir = "."
-output_dir = "combined"
-temp_dir = "temp_frames"
+input_dir = "./notebooks/data/gosif/animation/pngs"
+output_dir = "./notebooks/data/gosif/animation/pngs/combined"
+temp_dir = "./notebooks/data/gosif/animation/pngs/temp_frames"
 os.makedirs(output_dir, exist_ok=True)
 os.makedirs(temp_dir, exist_ok=True)
+
+year_left = "2018"
+year_right = "2019"
 
 # Bounding box coordinates
 bbox = {"left": -102, "bottom": 31, "right": -80.5, "top": 49}
 
-# Get all unique days of year from 2018 files
+# Get all unique days of year from left files
 doy_list = []
-for file in glob.glob(f"{input_dir}/GOSIF_2018???.png"):
+for file in glob.glob(f"{input_dir}/GOSIF_{year_left}???.png"):
     doy = file[-7:-4]
     doy_list.append(doy)
 
@@ -38,12 +41,12 @@ combined_files = []
 
 # Process each day of year
 for doy in doy_list:
-    file_2018 = f"{input_dir}/GOSIF_2018{doy}.png"
-    file_2019 = f"{input_dir}/GOSIF_2019{doy}.png"
+    file_left = f"{input_dir}/GOSIF_{year_left}{doy}.png"
+    file_right = f"{input_dir}/GOSIF_{year_right}{doy}.png"
     
-    if os.path.exists(file_2018) and os.path.exists(file_2019):
-        month_2018 = get_month_name(2018, int(doy))
-        month_2019 = get_month_name(2019, int(doy))
+    if os.path.exists(file_left) and os.path.exists(file_right):
+        month_left = get_month_name(int(year_left), int(doy))
+        month_right = get_month_name(int(year_right), int(doy))
         
         output_file = f"{output_dir}/combined_{doy}.png"
         combined_files.append(output_file)
@@ -61,20 +64,20 @@ for doy in doy_list:
         # Create the colorbar axis spanning both columns
         cax = fig.add_subplot(gs[1, :])
         
-        # First subplot - 2018
-        img_2018 = imread(file_2018)
+        # First subplot - left (typically earlier) year
+        img_left = imread(file_left)
         extent = [bbox["left"], bbox["right"], bbox["bottom"], bbox["top"]]
-        ax1.imshow(img_2018, extent=extent, origin='upper')
+        ax1.imshow(img_left, extent=extent, origin='upper')
         ax1.add_feature(cfeature.STATES.with_scale('10m'), linewidth=0.5, edgecolor='black')
         ax1.add_feature(cfeature.BORDERS.with_scale('10m'), linewidth=1, edgecolor='black')
-        ax1.set_title(f"{month_2018} 2018")
+        ax1.set_title(f"{month_left} {year_left}")
         
-        # Second subplot - 2019
-        img_2019 = imread(file_2019)
-        ax2.imshow(img_2019, extent=extent, origin='upper')
+        # Second subplot - right (typically subsequent) year
+        img_right = imread(file_right)
+        ax2.imshow(img_right, extent=extent, origin='upper')
         ax2.add_feature(cfeature.STATES.with_scale('10m'), linewidth=0.5, edgecolor='black')
         ax2.add_feature(cfeature.BORDERS.with_scale('10m'), linewidth=1, edgecolor='black')
-        ax2.set_title(f"{month_2019} 2019")
+        ax2.set_title(f"{month_right} {year_right}")
         
         # Add horizontal colorbar
         norm = colors.Normalize(vmin=0.0, vmax=0.8)
@@ -89,7 +92,7 @@ for doy in doy_list:
         plt.savefig(output_file, dpi=150, bbox_inches='tight')
         plt.close()
         
-        print(f"Created combined image for DOY {doy} ({month_2018}/{month_2019})")
+        print(f"Created combined image for DOY {doy} ({month_left}/{month_right})")
     else:
         print(f"Skipping DOY {doy} - missing file(s)")
 
