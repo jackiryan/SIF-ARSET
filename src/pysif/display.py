@@ -33,6 +33,7 @@ def plot_samples(
     lon: npt.NDArray[np.float64],
     cmap: str = "viridis",
     point_size: int = 20,
+    fig_size: tuple[int, int] = (16, 8),
     vmin: float | None = None,
     vmax: float | None = None,
     extents: list[float] = [-180, 180, -90, 90],
@@ -50,6 +51,7 @@ def plot_samples(
         lon (np.ndarray): 1D array of longitude values (in degrees)
         cmap (str): Matplotlib colormap for the sample values, default is viridis
         point_size (int): Marker size for the scatter plot
+        fig_size (tuple[int, int]): Size of the matplotlib figure (default 16, 8)
         vmin (float): Lower bound for the colormap. Defaults to None (automatic)
         vmax (float): Upper bound for the colormap. Defaults to None (automatic)
         title (str): Optionally provide a title for the plot
@@ -69,6 +71,7 @@ def plot_samples(
         lon,
         cmap=cmap,
         point_size=point_size,
+        fig_size=fig_size,
         vmin=vmin,
         vmax=vmax,
         extents=extents,
@@ -83,6 +86,7 @@ def plot_gridded(
     lat2d: npt.NDArray[np.float32],
     lon2d: npt.NDArray[np.float32],
     cmap: str = "viridis",
+    fig_size: tuple[int, int] = (16, 8),
     vmin: float | None = None,
     vmax: float | None = None,
     extents: list[float] = [-180, 180, -90, 90],
@@ -98,6 +102,7 @@ def plot_gridded(
         lat (np.ndarray): 2D array of latitude values (in degrees)
         lon (np.ndarray): 2D array of longitude values (in degrees)
         cmap (str): Matplotlib colormap for the sample values, default is viridis
+        fig_size (tuple[int, int]): Size of the matplotlib figure (default 16, 8)
         vmin (float): Lower bound for the colormap. Defaults to None (automatic)
         vmax (float): Upper bound for the colormap. Defaults to None (automatic)
         title (str): Optionally provide a title for the plot
@@ -116,6 +121,7 @@ def plot_gridded(
         lat2d,
         lon2d,
         cmap=cmap,
+        fig_size=fig_size,
         vmin=vmin,
         vmax=vmax,
         extents=extents,
@@ -132,6 +138,7 @@ def _plot_map(
     lon: npt.NDArray[np.float32],
     cmap: str = "viridis",
     point_size: int = 20,
+    fig_size: tuple[int, int] = (16, 8),
     vmin: float | None = None,
     vmax: float | None = None,
     extents: list[float] = [-180, 180, -90, 90],
@@ -143,7 +150,7 @@ def _plot_map(
         raise ValueError("samples, lat, and lon must all have the same length.")
 
     fig, ax = plt.subplots(
-        subplot_kw={"projection": ccrs.PlateCarree()}, figsize=(16, 8)
+        subplot_kw={"projection": ccrs.PlateCarree()}, figsize=fig_size
     )
 
     ax.set_global()

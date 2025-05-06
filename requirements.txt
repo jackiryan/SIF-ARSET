@@ -2,7 +2,7 @@ beautifulsoup4
 cartopy
 ipykernel
 jupyter
-jupyter_compare_view
+# jupyter_compare_view
 matplotlib
 netcdf4
 notebook
