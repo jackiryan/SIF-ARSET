@@ -4,7 +4,7 @@ This repository contains code for the upcoming ARSET training session on using s
 
 1. **exploration.ipynb**: Methods for retrieving and spatially gridding SIF data to get a sense of the observational record. In this exercise we reproduce monthly gridded plots like those that are found in [Doughty et al.](https://doi.org/10.5194/essd-14-1513-2022) 
 2. **gosif.ipynb**: One way to look at SIF with consistent spatial coverage, and the limitations of such a technique. In this exercise we retrieve and discuss data from the Drs. Xing Li and Jingfeng Xiao's 2019 [GOSIF paper](https://doi.org/10.3390/rs11050517).
-3. **ann-sif.ipynb** (not yet implemented): Another way to look at SIF over a wide area, this time being able to look at diurnal variation at the expense of spatial resolution. In this exercise we will reproduce and discuss results from [Zhang et al.](https://doi.org/10.1016/j.rse.2022.113383)
+3. **oco3_sam.ipynb**: A discussion of the Snapshot Area Map (SAM) mode unique to OCO-3, its applications, and a comparison of this data with flux tower data collected from ground-based measurements.
 
 ## Prerequisites
 
