@@ -11,6 +11,7 @@ numpy
 pydap
 python-dotenv
 rasterio
+rasterstats
 requests
 requests-cache
 tqdm
