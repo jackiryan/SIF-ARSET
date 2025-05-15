@@ -47,7 +47,7 @@ def year_doy_to_datetime(year: int, doy: int) -> datetime:
     """
     Convert an integer year and day of year (DOY) to a datetime object.
 
-    Args:
+    Arguments:
         year (int): The year (e.g., 2024)
         doy (int): The day of the year (1-365 or 1-366 for leap years)
 
@@ -74,7 +74,7 @@ def create_retry_session(
     client requests. This function attempts to mitigate that by retrying the request
     with a backoff factor.
 
-    Args:
+    Arguments:
         token (str): Earthdata auth token
         retries (int): Number of retries to use for the request
         backoff_factor (float): increase in amount of time to space repeated requests
@@ -134,7 +134,7 @@ class GesDiscDownloader:
         List the contents of a directory URL on an OpenDAP portal, e.g.,
         https://oco2.gesdisc.eosdis.nasa.gov/opendap/
 
-        Args:
+        Arguments:
             url (str): The URL of the directory on the OpenDAP portal
 
         Returns:
@@ -550,7 +550,7 @@ def download_file(url: str, output_path: str, verbose: bool = False):
     GesdiscDataDownloader._download_file, but does not rely on an authenticated
     session.
 
-    Args:
+    Arguments:
         url (str): URL to download
         output_path (str): Path to save the downloaded file
         verbose (bool, optional): Enable verbose output

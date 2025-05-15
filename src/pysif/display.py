@@ -45,7 +45,7 @@ def plot_samples(
     Plots sample values at the corresponding latitude and longitude coordinates
     on a world map.
 
-    Args:
+    Arguments:
         samples (np.ndarray): 1D array of sample values
         lat (np.ndarray): 1D array of latitude values (in degrees)
         lon (np.ndarray): 1D array of longitude values (in degrees)
@@ -97,7 +97,7 @@ def plot_gridded(
     """
     Plots 2-D gridded data on a lat/lon coordinate system overlayed on a world map.
 
-    Args:
+    Arguments:
         grid_data (np.ndarray): 2D array of sample values
         lat (np.ndarray): 2D array of latitude values (in degrees)
         lon (np.ndarray): 2D array of longitude values (in degrees)
