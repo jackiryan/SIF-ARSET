@@ -201,3 +201,54 @@ def _plot_map(
         print(f"Plot saved to {outfile}")
 
     plt.show()
+
+
+def plot_two_years_comparison(
+        doy_list: list[int],
+        values_a: list[float],
+        year_a: str | int, 
+        values_b: list[float],
+        year_b: str | int,
+        ylabel="GOSIF",
+        title=None):
+    """
+    Plot two time series from different years for comparison.
+    
+    Arguments:
+        doy_list (list[int]): Day of year within the respective year
+        values_a, values_b (list[float]):  Value arrays for each year
+        year_a, year_b (str | int): Year labels for the legend
+        ylabel (str):  Y-axis label
+        title (str): Plot title (auto-generated if None)
+    
+    Returns:
+        None
+    """
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    
+    # Plot both time series
+    plt.plot(doy_list, values_a, "b-", linewidth=2, marker="o", markersize=4, 
+             label=str(year_a), alpha=0.8)
+    plt.plot(doy_list, values_b, "r-", linewidth=2, marker="s", markersize=4, 
+             label=str(year_b), alpha=0.8)
+    
+    # Set title if not provided
+    if title is None:
+        title = f"{ylabel} Comparison: {year_a} vs {year_b}"
+    
+    # Format the plot
+    plt.title(title, fontsize=14, fontweight="bold")
+    plt.ylabel(ylabel, fontsize=12)
+    plt.xlabel("Day of Year", fontsize=12)
+    
+    # Format x-axis dates
+    plt.xticks(rotation=45)
+    
+    # Add legend and grid
+    plt.legend(fontsize=11, loc="best")
+    # plt.grid(True, alpha=0.3, linestyle="--")
+    
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()

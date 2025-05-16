@@ -32,6 +32,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from PIL import Image
 import imageio
+from tqdm.notebook import tqdm
 
 from . import convert_geotiff_to_png
 
@@ -85,7 +86,7 @@ def create_gosif_comparison_animation(
     # 8day:    GOSIF_20xxzzz.tif
     files_left: list[tuple[str, datetime]] = []
     files_right: list[tuple[str, datetime]] = []
-    for file in gosif_files:
+    for file in tqdm(gosif_files, desc="Exporting geotiffs as PNG"):
         bname = os.path.basename(file)
         year = int(bname[6:10])
         
@@ -102,7 +103,8 @@ def create_gosif_comparison_animation(
             vmax=vmax/scale_factor,
             bounds=bbox,
             threshold=threshold,
-            scale_factor=scale_factor
+            scale_factor=scale_factor,
+            verbose=False
         )
 
         if "M" in bname:
@@ -127,7 +129,7 @@ def create_gosif_comparison_animation(
     
     # Process each time step
     n = 0
-    for lt, rt in zip(files_left, files_right):
+    for lt, rt in tqdm(zip(files_left, files_right), total=len(files_left), desc="Creating animation frames"):
         file_left = lt[0]
         date_left = lt[1]
         month_left = date_left.strftime("%B")
@@ -172,7 +174,7 @@ def create_gosif_comparison_animation(
         
         # Create the colorbar
         cb = ColorbarBase(cax, cmap=cmap, norm=norm, orientation="horizontal")
-        cb.set_label("SIF (W/m$^2$/sr/μm)")
+        cb.set_label("GOSIF (W/m$^2$/sr/μm)")
         
         # Save the figure
         plt.tight_layout()
@@ -187,7 +189,7 @@ def create_gosif_comparison_animation(
         plt.close()
         
         n += 1
-        print(f"Created animation frame ({n}/{len(files_left)})")
+        # print(f"Created animation frame ({n}/{len(files_left)})")
     
     # Create animated GIF if any combined files were created
     if animation_frames:

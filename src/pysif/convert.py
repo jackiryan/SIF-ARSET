@@ -39,6 +39,7 @@ def convert_geotiff_to_png(
     bounds: dict[str, float] | None = None,
     scale_factor: int = 1,
     threshold: int | None = None,
+    verbose: bool = True,
 ) -> bool:
     """
     This function is intended to convert geotiff to PNG for the purposes of this training, it should
@@ -59,6 +60,7 @@ def convert_geotiff_to_png(
             values to units.
         threshold (int | None): Threshold value above which should be considered nodata. The
             nodata value in the geotiff will be used by default.
+        verbose (bool): If True, print information about file output.
 
     Returns:
         A bool True or False on success or failure to convert the image.
@@ -176,7 +178,8 @@ def convert_geotiff_to_png(
     with open(output_metadata_path, "w") as f:
         json.dump(metadata, f)
 
-    print(
-        f"Converted {geotiff_path} to {output_png_path} with metadata at {output_metadata_path}"
-    )
+    if verbose:
+        print(
+            f"Converted {geotiff_path} to {output_png_path} with metadata at {output_metadata_path}"
+        )
     return True
