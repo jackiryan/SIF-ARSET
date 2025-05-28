@@ -138,7 +138,6 @@ def create_gosif_comparison_animation(
         month_right = date_right.strftime("%B")
 
         output_file = f"{output_dir}/frame_{date_left.strftime("%m%d")}.png"
-        # animation_frames.append(output_file)
             
         # Create a figure with two subplots and horizontal colorbar below
         fig = plt.figure(figsize=(10, 6))
@@ -189,7 +188,6 @@ def create_gosif_comparison_animation(
         plt.close()
         
         n += 1
-        # print(f"Created animation frame ({n}/{len(files_left)})")
     
     # Create animated GIF if any combined files were created
     if animation_frames:

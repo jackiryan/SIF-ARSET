@@ -60,8 +60,12 @@ def year_doy_to_datetime(year: int, doy: int) -> datetime:
 @dataclass
 class GesDiscDataset:
     name: str
-    startdate: datetime | None = None
-    enddate: datetime | None = None
+    # Rather than handling possible None values, set the default
+    # date range to somewhere far in the future if the timerange
+    # fails to be found. This would cause granule requests to sub-
+    # sequently fail (intended).
+    startdate: datetime = datetime(2100, 1, 1)
+    enddate: datetime = datetime(2100, 1, 2)
     daily: bool = False
 
 
@@ -108,7 +112,7 @@ class GesDiscDownloader:
     gesdisc_download_url = "https://oco2.gesdisc.eosdis.nasa.gov/data/"
     year_pattern = re.compile(r"/(\d{4})/contents\.html$")
     doy_pattern = re.compile(r"/(\d{3})/contents\.html$")
-    nc4_pattern = re.compile(r"/([^/]*?)_(\d{6})_.*?\.nc4\.html$")
+    nc4_pattern = re.compile(r"/([^/]*?)_(\d{6})_.*?\.nc4?(?:\.dmr)?\.html$")
 
     def __init__(self):
         load_dotenv()
@@ -178,7 +182,7 @@ class GesDiscDownloader:
             else:
                 # href is a relative URL, so prepend the parent URL
                 content_url = urljoin(url, href)
-            contents.append(content_url)
+            contents.append(content_url.strip())
 
             # Third column has the filename
             if row.attrs.get("itemtype") == "http://schema.org/Dataset":
@@ -259,8 +263,8 @@ class GesDiscDownloader:
 
         # Short circuit the queries if we have already populated the values
         if (
-            self.datasets[dataset].startdate != None
-            and self.datasets[dataset].enddate != None
+            self.datasets[dataset].startdate != datetime(2100, 1, 1)
+            and self.datasets[dataset].enddate != datetime(2100, 1, 2)
         ):
             return (self.datasets[dataset].startdate, self.datasets[dataset].enddate)
 
@@ -307,8 +311,8 @@ class GesDiscDownloader:
         # As a side effect, adds this dataset's timerange to the cached time ranges
         # stored in this class.
         if (
-            self.datasets[dataset].startdate is None
-            or self.datasets[dataset].enddate is None
+            self.datasets[dataset].startdate == datetime(2100, 1, 1)
+            or self.datasets[dataset].enddate == datetime(2100, 1, 2)
         ):
             print(f"Checking available dates on GES DISC for {dataset}")
             self.get_dataset_timerange(dataset)
@@ -341,11 +345,19 @@ class GesDiscDownloader:
             )
 
         target_granule, _ = granule_info
+        # Replace https with dap4
+        target_granule = target_granule.replace("https", "dap4")
         # Remove the ".html" suffix to get the raw netCDF (.nc4) URL.
         granule_url = (
             target_granule[: -len(".html")]
             if target_granule.endswith(".html")
             else target_granule
+        )
+        # Also now we should remove the .dmr suffix (new as far as I can tell)
+        granule_url = (
+            granule_url[: -len(".dmr")]
+            if granule_url.endswith(".dmr")
+            else granule_url
         )
         return granule_url
 
@@ -483,6 +495,10 @@ class GesDiscDownloader:
                     if date in date_list:
                         opendap_url = (
                             url[: -len(".html")] if url.endswith(".html") else url
+                        )
+                        # also remove the dmr suffix if present, this is a new thing
+                        opendap_url = (
+                            opendap_url[: -len(".dmr")] if opendap_url.endswith(".dmr") else opendap_url
                         )
                         archive_url = self._opendap_to_archive_url(dataset, opendap_url)
                         filename = os.path.basename(urlparse(archive_url).path)
