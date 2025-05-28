@@ -37,24 +37,24 @@ from tqdm.notebook import tqdm
 from . import convert_geotiff_to_png
 
 def create_gosif_comparison_animation(
-    year_left: int,
-    year_right: int,
+    year_left: str,
+    year_right: str,
     gosif_files: list[str],
     output_dir: str,
     temp_dir: str = "data/temp",
-    bbox: dict[str, float] = None,
+    bbox: dict[str, float] | None = None,
     vmin: float = 0.0,
     vmax: float = 0.8,
     threshold: int = 32765,
     scale_factor: float = 0.0001,
     speed: float = 1.0
-) -> None:
+) -> str:
     """
     Create an animated GIF comparing GOSIF data between two years.
 
     Arguments:
-        year_left (int): The first year to compare
-        year_right (int): The second year to compare
+        year_left (str): The first year to compare
+        year_right (str): The second year to compare
         gosif_files (list[str]): List of GOSIF files to use in the animation
         output_dir (str): Directory to save the combined images
         temp_dir (str): Directory for temporary files (default: "temp")
@@ -99,8 +99,8 @@ def create_gosif_comparison_animation(
         convert_geotiff_to_png(
             file,
             gpng,
-            vmin=vmin/scale_factor,
-            vmax=vmax/scale_factor,
+            vmin=int(vmin/scale_factor),
+            vmax=int(vmax/scale_factor),
             bounds=bbox,
             threshold=threshold,
             scale_factor=scale_factor,
@@ -154,7 +154,7 @@ def create_gosif_comparison_animation(
         
         # First subplot - left (typically earlier) year
         img_left = imread(file_left)
-        extent = [bbox["left"], bbox["right"], bbox["bottom"], bbox["top"]]
+        extent = (bbox["left"], bbox["right"], bbox["bottom"], bbox["top"])
         ax1.imshow(img_left, extent=extent, origin="upper")
         ax1.add_feature(cfeature.STATES.with_scale("10m"), linewidth=0.5, edgecolor="black")
         ax1.add_feature(cfeature.BORDERS.with_scale("10m"), linewidth=1, edgecolor="black")

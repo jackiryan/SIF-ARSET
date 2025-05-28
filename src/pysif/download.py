@@ -173,7 +173,7 @@ class GesDiscDownloader:
             if len(tds) < 3:
                 continue  # not enough columns
             # First column contains the filename
-            link: Tag = tds[0].find("a")
+            link: Tag | None = tds[0].find("a")
             if not link:
                 continue
             href = str(link.get("href"))
@@ -462,8 +462,7 @@ class GesDiscDownloader:
             raise ValueError("start date is after the end date of requested time range")
 
         # Create the output directory if it does not exist.
-        if type(outpath) == str:
-            outpath = Path(outpath).resolve()
+        outpath = Path(outpath).resolve()
         outpath.mkdir(parents=True, exist_ok=True)
 
         # Generate a list of dates (daily) from start_date to end_date inclusive.
@@ -480,7 +479,12 @@ class GesDiscDownloader:
         granule_urls: list[tuple[datetime, str]] = []
         total_size = 0  # in bytes
 
+        # Build up a list of all requested dates in case the request crosses a
+        # year boundary
+        all_requested_dates: list[datetime] = []
+
         for year, date_list in dates_by_year.items():
+            all_requested_dates.extend(date_list)
             year_dir = f"{self.oco2_gesdisc_url}{dataset}/{year}/"
             try:
                 directory_urls, file_sizes = self.list_directory(year_dir)
@@ -502,13 +506,13 @@ class GesDiscDownloader:
                         )
                         archive_url = self._opendap_to_archive_url(dataset, opendap_url)
                         filename = os.path.basename(urlparse(archive_url).path)
-                        file_path = outpath / filename
+                        file_path = outpath / Path(filename)
                         if not file_path.exists():
                             total_size += size
                         granule_urls.append((date, archive_url))
 
         found_dates = list(map(lambda x: x[0], granule_urls))
-        notfound_dates = list(set(date_list) - set(found_dates))
+        notfound_dates = list(set(all_requested_dates) - set(found_dates))
 
         if not granule_urls:
             print("No granules found in the specified date range.")
@@ -605,7 +609,14 @@ def download_file(url: str, output_path: str, verbose: bool = False):
         return ""
 
 
-def construct_unh_url(base_url, dataset, year, month=None, day=None, verbose=False):
+def construct_unh_url(
+        base_url: str,
+        dataset: str,
+        year: int,
+        month: int | None = None,
+        day: int | None = None,
+        verbose: bool = False
+) -> str:
     """
     Construct the appropriate URL on the UNH data store based on the provided parameters.
 
@@ -614,8 +625,8 @@ def construct_unh_url(base_url, dataset, year, month=None, day=None, verbose=Fal
         dataset (str): Dataset name (e.g., GOSIF_v2)
         year (int): Year to download data for
         month (int, optional): Month to download data for (1-12)
-        day (int, optional): Day to download data for (1-31)
-        verbose (bool, optional): Enable verbose output
+        day (int, optional): Day to download data for
+        verbose (bool): Enable verbose output
 
     Returns:
         str: URL for the requested data file
@@ -656,7 +667,9 @@ def construct_unh_url(base_url, dataset, year, month=None, day=None, verbose=Fal
     else:
         # 8day data - need to calculate day of year
         resolution_path = "8day/"
-        date = datetime.date(year, month, day)
+        month = month or 1
+        day = day or 1
+        date = datetime(year, month, day)
         day_of_year = int(date.strftime("%j"))  # Day of year as integer
 
         nearest_8day = 1 + 8 * math.floor((day_of_year - 1) / 8)
@@ -728,7 +741,7 @@ def download_unpack_gosif(year: int,
                           dataset: str = "GOSIF_v2",
                           output_dir: str | None = None,
                           verbose: bool = True
-    ) -> str:
+) -> str:
     """
     Download and unzip a GOSIF granule from the UNH data store.
 

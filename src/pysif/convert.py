@@ -37,7 +37,7 @@ def convert_geotiff_to_png(
     vmin: int | None = None,
     vmax: int | None = None,
     bounds: dict[str, float] | None = None,
-    scale_factor: int = 1,
+    scale_factor: float = 1,
     threshold: int | None = None,
     verbose: bool = True,
 ) -> bool:
@@ -55,7 +55,7 @@ def convert_geotiff_to_png(
         vmax (int | None): Optionally specify a max value (unscaled) for the colormap.
         bounds (dict | None): Optionally provide a bounding box as a dict of
             { "left": lon_min, "bottom": lat_min, "right": lon_max, "top": lat_max }
-        scale_factor (int): Provide a scaling factor for the input data, this will
+        scale_factor (float): Provide a scaling factor for the input data, this will
             be included in the metadata to tell the plotting widget how to convert the pixel
             values to units.
         threshold (int | None): Threshold value above which should be considered nodata. The
@@ -151,7 +151,7 @@ def convert_geotiff_to_png(
     cmap.set_bad(alpha=0)  # Set masked values to be transparent
 
     fig = plt.figure(figsize=(width_inches, height_inches), dpi=dpi)
-    ax = plt.Axes(fig, [0, 0, 1, 1])  # No margins
+    ax = plt.Axes(fig, (0, 0, 1, 1))  # No margins
     ax.set_axis_off()
     fig.add_axes(ax)
     ax.imshow(

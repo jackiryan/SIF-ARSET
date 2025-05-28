@@ -28,9 +28,9 @@ import numpy.typing as npt
 
 
 def plot_samples(
-    samples: npt.NDArray[np.float64],
-    lat: npt.NDArray[np.float64],
-    lon: npt.NDArray[np.float64],
+    samples: npt.NDArray[np.float32],
+    lat: npt.NDArray[np.float32],
+    lon: npt.NDArray[np.float32],
     cmap: str = "viridis",
     point_size: int = 20,
     fig_size: tuple[int, int] = (16, 8),
@@ -149,7 +149,7 @@ def _plot_map(
     if not (len(data) == len(lat) == len(lon)):
         raise ValueError("samples, lat, and lon must all have the same length.")
 
-    fig, ax = plt.subplots(
+    _, ax = plt.subplots(
         subplot_kw={"projection": ccrs.PlateCarree()}, figsize=fig_size
     )
 
@@ -228,9 +228,9 @@ def plot_two_years_comparison(
     plt.figure(figsize=(12, 6))
     
     # Plot both time series
-    plt.plot(doy_list, values_a, "b-", linewidth=2, marker="o", markersize=4, 
+    plt.plot(doy_list, values_a, "b-", linewidth=2,
              label=str(year_a), alpha=0.8)
-    plt.plot(doy_list, values_b, "r-", linewidth=2, marker="s", markersize=4, 
+    plt.plot(doy_list, values_b, "r-", linewidth=2,
              label=str(year_b), alpha=0.8)
     
     # Set title if not provided
