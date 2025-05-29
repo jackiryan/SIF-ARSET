@@ -47,6 +47,7 @@ def create_gosif_comparison_animation(
     vmax: float = 0.8,
     threshold: int = 32765,
     scale_factor: float = 0.0001,
+    geojson_path: str | None = None,
     speed: float = 1.0
 ) -> str:
     """
@@ -104,6 +105,7 @@ def create_gosif_comparison_animation(
             bounds=bbox,
             threshold=threshold,
             scale_factor=scale_factor,
+            geojson_path=geojson_path,
             verbose=False
         )
 

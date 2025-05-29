@@ -20,6 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -202,7 +203,7 @@ def _plot_map(
 
     plt.show()
 
-
+'''
 def plot_two_years_comparison(
         doy_list: list[int],
         values_a: list[float],
@@ -245,9 +246,136 @@ def plot_two_years_comparison(
     # Format x-axis dates
     plt.xticks(rotation=45)
     
-    # Add legend and grid
+    # Add legend
     plt.legend(fontsize=11, loc="best")
-    # plt.grid(True, alpha=0.3, linestyle="--")
+    
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+'''
+
+def plot_two_years_comparison(
+        doy_list: list[int],
+        values_a: list[float],
+        year_a: str | int, 
+        values_b: list[float],
+        year_b: str | int,
+        ylabel: str = "GOSIF",
+        title: str | None = None,
+        highlight_start_idx: int | None = None,
+        highlight_end_idx: int | None = None,
+        marker_size: int = 8,
+        label_offset: float = 0.02):
+    """
+    Plot two time series from different years for comparison with optional highlighting
+    of divergent periods using markers and data labels.
+    
+    Arguments:
+        doy_list (list[int]): Day of year within the respective year
+        values_a, values_b (list[float]): Value arrays for each year
+        year_a, year_b (str | int): Year labels for the legend
+        ylabel (str): Y-axis label
+        title (str): Plot title (auto-generated if None)
+        highlight_start_idx (int): Start index for highlighting divergent period
+        highlight_end_idx (int): End index for highlighting divergent period
+        marker_size (int): Size of the markers in highlighted region
+        label_offset (float): Vertical offset for data labels as fraction of y-range
+    
+    Returns:
+        None
+    """
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    
+    # Define colors for consistency
+    color_a = 'blue'
+    color_b = 'red'
+    
+    # Plot both time series
+    line_a = plt.plot(doy_list, values_a, color=color_a, linewidth=2,
+                      label=str(year_a), alpha=0.8)[0]
+    line_b = plt.plot(doy_list, values_b, color=color_b, linewidth=2,
+                      label=str(year_b), alpha=0.8)[0]
+    
+    # Add markers and labels for highlighted region if specified
+    if highlight_start_idx is not None and highlight_end_idx is not None:
+        start_idx = max(0, highlight_start_idx)
+        end_idx = min(len(doy_list), highlight_end_idx + 1)
+        
+        if start_idx < end_idx:
+            highlight_doy = doy_list[start_idx:end_idx]
+            highlight_values_a = values_a[start_idx:end_idx]
+            highlight_values_b = values_b[start_idx:end_idx]
+            
+            plt.plot(highlight_doy, highlight_values_a, 'o', 
+                    color=color_a, markersize=marker_size, alpha=0.9)
+            plt.plot(highlight_doy, highlight_values_b, 'o', 
+                    color=color_b, markersize=marker_size, alpha=0.9)
+            
+            # Calculate label offset based on data range
+            y_range = max(max(values_a), max(values_b)) - min(min(values_a), min(values_b))
+            offset = y_range * label_offset
+
+            x_range = max(doy_list) - min(doy_list)
+            x_offset = x_range * 0.01  # 1% of x-range for horizontal shift
+            
+            # Add data labels for the highlighted region
+            for i, (doy, val_a, val_b) in enumerate(zip(highlight_doy, highlight_values_a, highlight_values_b)):
+                # Label for year A (positioned above the point)
+                plt.text(doy - x_offset, val_a + offset, f'{val_a:.2f}', 
+                        color=color_a, fontsize=9, ha='center', va='bottom')
+                
+                # Label for year B (positioned below the point)
+                plt.text(doy + x_offset, val_b - offset, f'{val_b:.2f}', 
+                        color=color_b, fontsize=9, ha='center', va='top')
+
+            y_min, y_max = plt.ylim()
+            y_range = y_max - y_min
+            
+            # Calculate additional space needed for labels
+            label_space = y_range * label_offset * 2  # Double the offset for buffer
+            
+            # Expand y-axis limits
+            plt.ylim(y_min - label_space, y_max + label_space)
+    
+    
+    # Set title if not provided
+    if title is None:
+        title = f"{ylabel} Comparison: {year_a} vs {year_b}"
+
+    def doy_to_month_label(doy):
+        """Convert day of year to month name."""
+        # Use a reference year (e.g., 2020 which is a leap year to handle DOY 366)
+        date = datetime(2020, 1, 1) + timedelta(days=doy - 1)
+        return date.strftime('%b')
+    
+    # Create month labels and positions for major ticks
+    unique_months = []
+    month_positions = []
+    seen_months = set()
+    
+    for i, doy in enumerate(doy_list):
+        month_label = doy_to_month_label(doy)
+        if month_label not in seen_months:
+            unique_months.append(month_label)
+            month_positions.append(doy)
+            seen_months.add(month_label)
+    
+    # Set x-axis ticks and labels
+    plt.xticks(month_positions, unique_months, rotation=0)  # rotation=0 for horizontal
+    
+    # Add minor ticks for better granularity (optional)
+    plt.gca().set_xticks(doy_list, minor=True)
+    
+    # Format the plot
+    plt.title(title, fontsize=14, fontweight="bold")
+    plt.ylabel(ylabel, fontsize=12)
+    
+    # Add legend
+    plt.legend(fontsize=11, loc="best")
+    
+    # Add grid for better readability
+    #plt.grid(True, alpha=0.3)
     
     # Adjust layout
     plt.tight_layout()

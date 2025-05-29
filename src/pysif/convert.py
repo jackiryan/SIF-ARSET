@@ -26,10 +26,9 @@ import matplotlib.colors as colors
 import numpy as np
 import os
 import rasterio
-from rasterio.plot import show
-from rasterio.windows import from_bounds, Window
+from rasterio.windows import from_bounds
 from rasterio.windows import bounds as window_bounds
-
+import geopandas as gpd
 
 def convert_geotiff_to_png(
     geotiff_path: str,
@@ -39,6 +38,10 @@ def convert_geotiff_to_png(
     bounds: dict[str, float] | None = None,
     scale_factor: float = 1,
     threshold: int | None = None,
+    geojson_path: str | None = None,
+    overlay_color: str = 'red',
+    overlay_linewidth: float = 0.5,
+    overlay_alpha: float = 1.0,
     verbose: bool = True,
 ) -> bool:
     """
@@ -60,6 +63,10 @@ def convert_geotiff_to_png(
             values to units.
         threshold (int | None): Threshold value above which should be considered nodata. The
             nodata value in the geotiff will be used by default.
+        geojson_path (str | None): Path to a GeoJSON file containing a single feature to overlay.
+        overlay_color (str): Color for the vector overlay (default: 'red').
+        overlay_linewidth (float): Line width for the vector overlay (default: 2.0).
+        overlay_alpha (float): Transparency for the vector overlay (default: 1.0).
         verbose (bool): If True, print information about file output.
 
     Returns:
@@ -154,9 +161,42 @@ def convert_geotiff_to_png(
     ax = plt.Axes(fig, (0, 0, 1, 1))  # No margins
     ax.set_axis_off()
     fig.add_axes(ax)
-    ax.imshow(
-        valid_data, cmap=cmap, norm=norm_data, interpolation="nearest", aspect="auto"
+    
+    # Display the raster data
+    im = ax.imshow(
+        valid_data, cmap=cmap, norm=norm_data, interpolation="nearest", aspect="auto",
+        extent=(dst_bounds["left"], dst_bounds["right"], dst_bounds["bottom"], dst_bounds["top"])
     )
+    
+    # Overlay GeoJSON if provided
+    if geojson_path and os.path.exists(geojson_path):
+        try:
+            # Read the GeoJSON file
+            gdf = gpd.read_file(geojson_path)
+            
+            # Reproject to match the raster CRS if needed
+            if gdf.crs != src_crs:
+                gdf = gdf.to_crs(src_crs)
+            
+            # Plot the vector overlay
+            gdf.plot(
+                ax=ax,
+                facecolor='none',
+                edgecolor=overlay_color,
+                linewidth=overlay_linewidth,
+                alpha=overlay_alpha
+            )
+            
+            if verbose:
+                print(f"Added GeoJSON overlay from {geojson_path}")
+                
+        except Exception as e:
+            print(f"Warning: Could not overlay GeoJSON file {geojson_path}: {e}")
+    
+    # Set the axis limits to match the data bounds
+    ax.set_xlim(dst_bounds["left"], dst_bounds["right"])
+    ax.set_ylim(dst_bounds["bottom"], dst_bounds["top"])
+    
     plt.savefig(
         output_png_path, dpi=dpi, bbox_inches="tight", pad_inches=0, transparent=True
     )
@@ -173,6 +213,15 @@ def convert_geotiff_to_png(
             "max": round(scale_factor * range_max, ndigits=5),
         },
     }
+    
+    # Add overlay information to metadata if GeoJSON was used
+    if geojson_path and os.path.exists(geojson_path):
+        metadata["overlay"] = {
+            "geojson_path": geojson_path,
+            "color": overlay_color,
+            "linewidth": overlay_linewidth,
+            "alpha": overlay_alpha
+        }
 
     # Save the metadata as JSON
     with open(output_metadata_path, "w") as f:
