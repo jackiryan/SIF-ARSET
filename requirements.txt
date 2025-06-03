@@ -13,4 +13,5 @@ rasterio
 rasterstats
 requests
 requests-cache
+scikit-learn
 tqdm
