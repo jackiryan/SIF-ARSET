@@ -56,3 +56,31 @@ If you would like to just open the notebook on subsequent uses, assuming your en
 ```bash
 jupyter lab notebooks/exploration.ipynb
 ```
+
+## Citations
+
+[1] Basilio, R., Bennett, M., Eldering, A., Lawson, P., and Rosenberg, R. (2019). Orbiting Carbon Observatory-3 (OCO-3), remote sensing from the International Space Station (ISS). Proceedings Volume 11151, Sensors, Systems, and Next-Generation Satellites XXIII, 11151. https://doi.org/10.1117/12.2534996
+
+[2] Doughty, R., Kurosu, T. P., Parazoo, N., Köhler, P., Wang, Y., Sun, Y., and Frankenberg, C. (2022). Global GOSAT, OCO-2, and OCO-3 solar-induced chlorophyll fluorescence datasets. Earth Syst. Sci. Data, 14, 1513–1529. https://doi.org/10.5194/essd-14-1513-2022
+
+[3] OCO Science Team/Michael Gunson, Annmarie Eldering (2024). OCO-3 level 2 bias-corrected solar-induced fluorescence and other select fields from the IMAP-DOAS algorithm aggregated as daily files, retrospective processing V11r. Greenbelt, MD, USA, Goddard Earth Sciences Data and Information Services Center (GES DISC). Accessed: 4 Jun 2025. https://doi.org/10.5067/HC776J71KV41
+
+[4] OCO-2/OCO-3 Science Team, Vivienne Payne, Abhishek Chatterjee (2024). OCO-2 level 2 bias-corrected XCO2 and other select fields from the full-physics retrieval aggregated as daily files, retrospective processing V11.2r. Greenbelt, MD, USA, Goddard Earth Sciences Data and Information Services Center (GES DISC). Accessed: 4 Jun 2025. https://doi.org/10.5067/70K2B2W8MNGY
+
+[5] Li, X. and Xiao, J. (2019). A global, 0.05-degree product of solar-induced chlorophyll fluorescence derived from OCO-2, MODIS, and reanalysis data. Remote Sensing, 11, 517. https://doi.org/10.3390/rs11050517
+
+[6] Yin, Y., Byrne, B., Liu, J., Wennberg, P., Davis, K. J., Magney, T., et al. (2020). Cropland carbon uptake delayed and reduced by 2019 midwest floods. AGU Advances, 1, e2019AV000140. https://doi.org/10.1029/2019AV000140
+
+[7] Pierrat, Z., Magney, T., Parazoo, N. C., Grossmann, K., Bowling, D. R., Seibt, U., et al. (2022). Diurnal and seasonal dynamics of solar-induced chlorophyll fluorescence, vegetation indices, and gross primary productivity in the boreal forest. Journal of Geophysical Research: Biogeosciences, 127, e2021JG006588. https://doi.org/10.1029/2021JG006588
+
+[8] Law, B. (2025). AmeriFlux BASE US-Me2 metolius mature ponderosa pine, Ver. 21-5. AmeriFlux AMP. Accessed: 4 Jun 2025. https://doi.org/10.17190/AMF/1246076
+
+## Data Sources and Attributions
+
+**GOSIF Dataset:** Used with permission from the author (permission pending).
+
+**MapTiler Base Layer:** Used under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/) with contributions from OpenStreetMap contributors.
+
+**Esri Global Imagery:** Base layer tiles used under the [Esri Master License Agreement](https://www.esri.com/content/dam/esrisites/en-us/media/legal/ma-full/ma-full.pdf). All map tiles are ©Esri.
+
+**AmeriFlux BASE Dataset:** Used under [CC-BY-4.0 License](https://ameriflux.lbl.gov/sites/siteinfo/US-Me2#data-citation).
