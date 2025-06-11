@@ -30,6 +30,7 @@ import math
 import os
 from pathlib import Path
 from pydap.client import open_url
+from pydap.cas.urs import setup_session
 import pydap.lib
 import re
 import requests
@@ -40,7 +41,7 @@ from urllib.parse import urljoin, urlparse
 from urllib3.util.retry import Retry
 
 os.makedirs("pydap-cache", exist_ok=True)
-pydap.lib.CACHE = "pydap-cache/"
+pydap.lib.CACHE = "pydap-cache/" # type: ignore
 
 
 def year_doy_to_datetime(year: int, doy: int) -> datetime:
@@ -70,7 +71,7 @@ class GesDiscDataset:
 
 
 def create_retry_session(
-    token: str, retries: int = 5, backoff_factor: float = 1.0
+    username: str | None, password: str | None, retries: int = 5, backoff_factor: float = 1.0
 ) -> requests.Session:
     """
     When downloading data from the DAAC's direct data portal (not OpenDAP), the
@@ -79,7 +80,8 @@ def create_retry_session(
     with a backoff factor.
 
     Arguments:
-        token (str): Earthdata auth token
+        username (str | None): Earthdata username. If not provided, uses the netrc
+        password (str | None): Earthdata password
         retries (int): Number of retries to use for the request
         backoff_factor (float): increase in amount of time to space repeated requests
 
@@ -88,7 +90,23 @@ def create_retry_session(
             requests to the DAAC
     """
     session = requests.Session()
-    session.headers = {"Authorization": f"Bearer {token}"}
+    if username and password:
+        session.headers.update({"User-Agent": "earthaccess"})
+        session.auth = (username, password)
+        auth_resp = session.post(
+            "https://urs.earthdata.nasa.gov/api/users/find_or_create_token",
+            headers={
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+        auth_resp.json()
+        if not (auth_resp.ok):
+            msg = f"Authentication with Earthdata Login failed with:\n{auth_resp.text}"
+            raise ValueError(msg)
+
+        token = auth_resp.json()
+        session.headers.update({"Authorization": f"Bearer {token}"})
 
     retry_strategy = Retry(
         total=retries,
@@ -97,7 +115,7 @@ def create_retry_session(
         backoff_factor=backoff_factor,
         raise_on_status=False,  # So that the adapter retries instead of raising immediately
     )
-    adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy)
+    adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy) # type: ignore
     session.mount("https://", adapter)
     session.mount("http://", adapter)
 
@@ -116,14 +134,14 @@ class GesDiscDownloader:
 
     def __init__(self):
         load_dotenv()
-        self.token = os.getenv("NASA_EARTHDATA_TOKEN")
-        if not self.token:
-            raise ValueError(
-                "NASA_EARTHDATA_TOKEN not found in environment variables. "
-                "Please ensure you have a .env file with your token."
-            )
-        self.session = create_retry_session(self.token)
-        self.session.headers = {"Authorization": f"Bearer {self.token}"}
+        username = os.getenv("EARTHDATA_USERNAME")
+        password = os.getenv("EARTHDATA_PASSWORD")
+            
+        self.session = create_retry_session(username, password)
+        if username and password:
+            self.pydap_session = setup_session(username, password)
+        else:
+            self.pydap_session = self.session
 
         # cache responses in an SQLite database with a TTL of 300 seconds (5 minutes)
         requests_cache.install_cache(
@@ -392,7 +410,8 @@ class GesDiscDownloader:
             )
 
         granule_url = self._get_granule_url_by_date(dataset, date)
-        return open_url(granule_url, session=self.session)
+        # pydap session is used to get around transient errors where EDL_TOKEN causes 401 errors. 
+        return open_url(granule_url, session=self.pydap_session)
 
     def _opendap_to_archive_url(self, dataset: str, url: str) -> str:
         # Rough heuristic for figuring out which archive directory to filter to
