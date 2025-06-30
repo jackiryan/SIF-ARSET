@@ -454,6 +454,7 @@ class GesDiscDownloader:
         end_date: datetime,
         outpath: str | Path,
         parallel: bool = True,
+        yes: bool = False,
     ) -> tuple[list[Path], list[datetime], list[str]]:
         """
         Download a set of granules from a time range of dates, using multithreading by default.
@@ -465,6 +466,7 @@ class GesDiscDownloader:
             outpath (Path): Directory to store the output files. It will be created
                 if it does not exist.
             parallel (bool): Download files in parallel. Default behavior is True.
+            yes (bool): Skip yes/no prompt before downloading.
 
         Returns:
             tuple[list[Path], list[datetime], list[str]]:
@@ -538,13 +540,14 @@ class GesDiscDownloader:
             return ([], notfound_dates, [])
 
         total_mb = total_size / (1024 * 1024)
-        print(
-            f"This action will add an additional {int(total_mb)} MB of data to {outpath}"
-        )
-        confirm = input("Do you want to continue? (y/N): ")
-        if confirm.lower() not in ("y", "yes"):
-            print("Download cancelled.")
-            return ([], [], [])
+        if not yes:
+            print(
+                f"This action will add an additional {int(total_mb)} MB of data to {outpath}"
+            )
+            confirm = input("Do you want to continue? (y/N): ")
+            if confirm.lower() not in ("y", "yes"):
+                print("Download cancelled.")
+                return ([], [], [])
 
         downloaded_files: list[Path] = []
         failed_downloads: list[str] = []
