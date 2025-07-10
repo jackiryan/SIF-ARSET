@@ -39,12 +39,9 @@ import numpy.typing as npt
 import os
 import re
 from tqdm.notebook import tqdm
-from typing import TypeVar
 
 from . import GesDiscDownloader
 from . import L2_SCHEMAS
-
-DatasetType = TypeVar("DatasetType")
 
 EQ_STRS = ["=", "==", "eq"]
 GT_STRS = [">", "gt"]
@@ -52,7 +49,7 @@ LT_STRS = ["<", "lt"]
 
 
 def get_variable_array(
-    granule: DatasetType,
+    granule: object,
     variable: str,
     dd: bool = False,
     pydap: bool = True,
@@ -72,14 +69,14 @@ def get_variable_array(
     if pydap:
         # pydap flattens all variables to the top level by joining group names with an underscore
         varname = variable.replace("/", "_")
-        data = np.array(granule[varname].data[:], dtype=np.float32)
+        data = np.array(granule[varname].data[:], dtype=np.float32) # type: ignore
     else:
         if "/" in variable:
             group = variable.split("/")[0]
             varname = variable.split("/")[-1]
-            data = np.array(granule[group][varname][:], dtype=np.float32)
+            data = np.array(granule[group][varname][:], dtype=np.float32) # type: ignore
         else:
-            data = np.array(granule[variable][:], dtype=np.float32)
+            data = np.array(granule[variable][:], dtype=np.float32) # type: ignore
     # DD means there is a second index for footprint bounds of dimension 4
     if dd:
         if data.shape[0] == 4:
@@ -93,12 +90,12 @@ def get_variable_array(
     return data
 
 
-def get_granule_date(granule: DatasetType, pydap: bool) -> str:
+def get_granule_date(granule: object, pydap: bool) -> str:
     """extract the date metadata from an input netCDF."""
     if pydap:
-        return granule.attributes["HDF5_GLOBAL"]["date_time_coverage"][0].split("T")[0]
+        return granule.attributes["HDF5_GLOBAL"]["date_time_coverage"][0].split("T")[0] # type: ignore
     else:
-        return granule.date_time_coverage[0].split("T")[0]
+        return granule.date_time_coverage[0].split("T")[0] # type: ignore
 
 
 def div_line(
@@ -353,7 +350,7 @@ def validate_local_dir(
         )
 
 
-def get_local_granule(local_dir: str, dataset: str, d: datetime) -> DatasetType:
+def get_local_granule(local_dir: str, dataset: str, d: datetime) -> object:
     """
     Get the full path to a granule in the local directory for the specified date and
     dataset.
@@ -381,7 +378,7 @@ def get_local_granule(local_dir: str, dataset: str, d: datetime) -> DatasetType:
 
 
 def process_day_granule(
-    granule: DatasetType,
+    granule: object,
     lat_min: float,
     lat_max: float,
     lon_min: float,
@@ -561,8 +558,8 @@ def process_day_worker(args):
         granule = None
     finally:
         # Close the granule file if it's a netCDF Dataset
-        if granule is not None and hasattr(granule, "close"):
-            granule.close()
+        if granule is not None and hasattr(granule, "close"): # type: ignore
+            granule.close() # type: ignore
     
     return t_ndx, d, mat_data, mat_data_weights, result_status
 
@@ -621,6 +618,7 @@ def create_gridded_raster(
     """
     dates = generate_dates(start_date, end_date)
 
+    dl = None
     if local_dir is None:
         dl = GesDiscDownloader()
         validate_date_range(dl, dataset, start_date, end_date)
@@ -753,7 +751,7 @@ def create_gridded_raster(
         for t_ndx, d in enumerate(tqdm(dates, desc="Time slices")):
             try:
                 if local_dir is None:
-                    granule = dl.get_granule_by_date(dataset, d)
+                    granule = dl.get_granule_by_date(dataset, d) # type: ignore
                 else:
                     granule = get_local_granule(local_dir, dataset, d)
 
@@ -798,8 +796,8 @@ def create_gridded_raster(
                 ds_time[t_ndx] = date2num(d, units=ds_time.units)
             finally:
                 # Close the granule file if it's a netCDF Dataset
-                if granule is not None and hasattr(granule, "close"):
-                    granule.close()
+                if granule is not None and hasattr(granule, "close"): # type: ignore
+                    granule.close() # type: ignore
 
             # Reset temporary arrays for the next time slice
             mat_data.fill(0.0)

@@ -19,22 +19,15 @@ cd SIF-ARSET
 
 Alternatively, you may wish to use [GitHub Desktop](https://desktop.github.com/download/) which does not require the command line. In the GitHub Desktop app, you would click the "Current Repository" dropdown, then select "Add", then "Clone Repository..." (Shift+Cmd+O on MacOS) and select this repo (you may need to have it starred for it to appear in the list of options). 
 
-### Getting an Earthdata Token
+### Setting up your Earthdata Login
 
-Before diving into the Jupyter Notebook in the notebooks/ directory, you will need to get an Access token from the NASA Earthdata site. First, head to [Earthdata Login](https://urs.earthdata.nasa.gov/) and create an account if you do not have one already. If you are logged in, this link will redirect to your user profile page. Next, navigate to the tab called "Generate Token" (see screenshot below if you can't find it).
+Before diving into the Jupyter Notebook in the notebooks/ directory, you will need to add your Earthdata username and password to a .env file in this repository. The code will read these credentials to authenticate you when downloading OCO-2 and 3 granules. If you do not have an account, you can first go to [Earthdata Login](https://urs.earthdata.nasa.gov/) and create one. 
 
-![Earthdata login page](images/EarthData_Login.png)
+**Create a new file called .env in the same directory as this readme (the repository root) and put your username and password into it the same way you see it in .env.example:**
 
-If you have already generated a token and it hasn't expired, it will be listed on this page. Press the green button to generate a new token if you need a new one, or copy your existing token. Next you will want to copy the .env.example file and save it as .env in this directory with your copied token credential. You can edit the new .env file yourself in a text editor or use the commands below:
-
-**On MacOS/Linux**
 ```bash
-echo "NASA_EARTHDATA_TOKEN=<paste your token here>" > .env
-```
-
-**On Windows**
-```powershell
-Set-Content .env "NASA_EARTHDATA_TOKEN=<paste your token here>"
+EARTHDATA_USERNAME=user
+EARTHDATA_PASSWORD=pass
 ```
 
 ### Installing the necessary packages
