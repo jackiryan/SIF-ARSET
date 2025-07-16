@@ -7,6 +7,7 @@ matplotlib
 netcdf4
 notebook
 numpy
+pandas
 pydap
 python-dotenv
 rasterio
