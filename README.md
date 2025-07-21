@@ -56,24 +56,31 @@ jupyter lab notebooks/exploration.ipynb
 
 [2] Doughty, R., Kurosu, T. P., Parazoo, N., Köhler, P., Wang, Y., Sun, Y., and Frankenberg, C. (2022). Global GOSAT, OCO-2, and OCO-3 solar-induced chlorophyll fluorescence datasets. Earth Syst. Sci. Data, 14, 1513–1529. https://doi.org/10.5194/essd-14-1513-2022
 
-[3] OCO Science Team/Michael Gunson, Annmarie Eldering (2024). OCO-3 level 2 bias-corrected solar-induced fluorescence and other select fields from the IMAP-DOAS algorithm aggregated as daily files, retrospective processing V11r. Greenbelt, MD, USA, Goddard Earth Sciences Data and Information Services Center (GES DISC). Accessed: 4 Jun 2025. https://doi.org/10.5067/HC776J71KV41
+[3] OCO Science Team/Michael Gunson, Annmarie Eldering (2024). OCO-3 level 2 bias-corrected solar-induced fluorescence and other select fields from the IMAP-DOAS algorithm aggregated as daily files, retrospective processing V11r. Greenbelt, MD, USA, Goddard Earth Sciences Data and Information Services Center (GES DISC). Accessed: 21 Jul 2025. https://doi.org/10.5067/HC776J71KV41
 
-[4] OCO-2/OCO-3 Science Team, Vivienne Payne, Abhishek Chatterjee (2024). OCO-2 level 2 bias-corrected XCO2 and other select fields from the full-physics retrieval aggregated as daily files, retrospective processing V11.2r. Greenbelt, MD, USA, Goddard Earth Sciences Data and Information Services Center (GES DISC). Accessed: 4 Jun 2025. https://doi.org/10.5067/70K2B2W8MNGY
+[4] Pierrat, Z., Magney, T., Parazoo, N. C., Grossmann, K., Bowling, D. R., Seibt, U., et al. (2022). Diurnal and seasonal dynamics of solar-induced chlorophyll fluorescence, vegetation indices, and gross primary productivity in the boreal forest. Journal of Geophysical Research: Biogeosciences, 127, e2021JG006588. https://doi.org/10.1029/2021JG006588
 
-[5] Li, X. and Xiao, J. (2019). A global, 0.05-degree product of solar-induced chlorophyll fluorescence derived from OCO-2, MODIS, and reanalysis data. Remote Sensing, 11, 517. https://doi.org/10.3390/rs11050517
+[5] Law, B. (2025). AmeriFlux BASE US-Me2 metolius mature ponderosa pine, Ver. 21-5. AmeriFlux AMP. Accessed: 4 Jun 2025. https://doi.org/10.17190/AMF/1246076
 
-[6] Yin, Y., Byrne, B., Liu, J., Wennberg, P., Davis, K. J., Magney, T., et al. (2020). Cropland carbon uptake delayed and reduced by 2019 midwest floods. AGU Advances, 1, e2019AV000140. https://doi.org/10.1029/2019AV000140
+[6] Pastorello, G., Trotta, C., Canfora, E. et al. (2020). The FLUXNET2015 dataset and the ONEFlux processing pipeline for eddy covariance data. Sci Data 7, 225. https://doi.org/10.1038/s41597-020-0534-3
 
-[7] Pierrat, Z., Magney, T., Parazoo, N. C., Grossmann, K., Bowling, D. R., Seibt, U., et al. (2022). Diurnal and seasonal dynamics of solar-induced chlorophyll fluorescence, vegetation indices, and gross primary productivity in the boreal forest. Journal of Geophysical Research: Biogeosciences, 127, e2021JG006588. https://doi.org/10.1029/2021JG006588
+[7] Barr, J. G., Engel, V., Fuentes, J. D., Fuller, D. O., and Kwon, H. (2013). Modeling light use efficiency in a subtropical mangrove forest equipped with CO2 eddy covariance. Biogeosciences, 10, 2145–2158. https://doi.org/10.5194/bg-10-2145-2013
 
-[8] Law, B. (2025). AmeriFlux BASE US-Me2 metolius mature ponderosa pine, Ver. 21-5. AmeriFlux AMP. Accessed: 4 Jun 2025. https://doi.org/10.17190/AMF/1246076
+[8] Papale, D., Reichstein, M., Aubinet, M., Canfora, E., Bernhofer, C., et al. (2006). Towards a standardized processing of Net Ecosystem Exchange measured with eddy covariance technique: algorithms and uncertainty estimation. Biogeosciences, 3, 571–583, https://doi.org/10.5194/bg-3-571-2006
+
+[9] Pierrat, Z. (2023). Evergreen needleleaf forest pigment, MONI-PAM, eddy-covariance, and tower-scale remote sensing data across four different sites [Data set]. In BioScience. Zenodo. https://doi.org/10.5281/zenodo.10048770
+
+[10] Li, X. and Xiao, J. (2019). A global, 0.05-degree product of solar-induced chlorophyll fluorescence derived from OCO-2, MODIS, and reanalysis data. Remote Sensing, 11, 517. https://doi.org/10.3390/rs11050517
+
+[11] Yin, Y., Byrne, B., Liu, J., Wennberg, P., Davis, K. J., Magney, T., et al. (2020). Cropland carbon uptake delayed and reduced by 2019 midwest floods. AGU Advances, 1, e2019AV000140. https://doi.org/10.1029/2019AV000140
+
 
 ## Data Sources and Attributions
-
-**GOSIF Dataset:** Used with permission from the author (permission pending).
-
-**MapTiler Base Layer:** Used under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/) with contributions from OpenStreetMap contributors.
 
 **Esri Global Imagery:** Base layer tiles used under the [Esri Master License Agreement](https://www.esri.com/content/dam/esrisites/en-us/media/legal/ma-full/ma-full.pdf). All map tiles are ©Esri.
 
 **AmeriFlux BASE Dataset:** Used under [CC-BY-4.0 License](https://ameriflux.lbl.gov/sites/siteinfo/US-Me2#data-citation).
+
+**GOSIF Dataset:** Used with permission from the author.
+
+**MapTiler Base Layer:** Used under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/) with contributions from OpenStreetMap contributors.
