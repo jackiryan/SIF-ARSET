@@ -64,9 +64,9 @@ jupyter lab notebooks/exploration.ipynb
 
 [6] Pastorello, G., Trotta, C., Canfora, E. et al. (2020). The FLUXNET2015 dataset and the ONEFlux processing pipeline for eddy covariance data. Sci Data 7, 225. https://doi.org/10.1038/s41597-020-0534-3
 
-[7] Barr, J. G., Engel, V., Fuentes, J. D., Fuller, D. O., and Kwon, H. (2013). Modeling light use efficiency in a subtropical mangrove forest equipped with CO2 eddy covariance. Biogeosciences, 10, 2145–2158. https://doi.org/10.5194/bg-10-2145-2013
+[7] Reichstein, M., Falge, E., Baldocchi, D., Papale, D., et al. (2005).  On the separation of net ecosystem exchange into assimilation and ecosystem respiration: review and improved algorithm. Global Change Biology, 11: 1424-1439. https://doi.org/10.1111/j.1365-2486.2005.001002.x
 
-[8] Papale, D., Reichstein, M., Aubinet, M., Canfora, E., Bernhofer, C., et al. (2006). Towards a standardized processing of Net Ecosystem Exchange measured with eddy covariance technique: algorithms and uncertainty estimation. Biogeosciences, 3, 571–583, https://doi.org/10.5194/bg-3-571-2006
+[8] Lasslop, G., Reichstein, M., Papale, D., Richardson, A.D., et al. (2010). Separation of net ecosystem exchange into assimilation and respiration using a light response curve approach: critical issues and global evaluation. Global Change Biology, 16: 187-208. https://doi.org/10.1111/j.1365-2486.2009.02041.x
 
 [9] Pierrat, Z. (2023). Evergreen needleleaf forest pigment, MONI-PAM, eddy-covariance, and tower-scale remote sensing data across four different sites [Data set]. In BioScience. Zenodo. https://doi.org/10.5281/zenodo.10048770
 
