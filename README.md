@@ -60,26 +60,28 @@ jupyter lab notebooks/exploration.ipynb
 
 [4] Pierrat, Z., Magney, T., Parazoo, N. C., Grossmann, K., Bowling, D. R., Seibt, U., et al. (2022). Diurnal and seasonal dynamics of solar-induced chlorophyll fluorescence, vegetation indices, and gross primary productivity in the boreal forest. Journal of Geophysical Research: Biogeosciences, 127, e2021JG006588. https://doi.org/10.1029/2021JG006588
 
-[5] Law, B. (2025). AmeriFlux BASE US-Me2 metolius mature ponderosa pine, Ver. 21-5. AmeriFlux AMP. Accessed: 4 Jun 2025. https://doi.org/10.17190/AMF/1246076
+[5] Christopher Gough, Gil Bohrer, and Peter Curtis (2023). AmeriFlux FLUXNET-1F US-UMB Univ. of Mich. Biological Station, Ver. 3-5, AmeriFlux AMP. Accessed: 23 Jul 2025. https://doi.org/10.17190/AMF/2204882
 
-[6] Pastorello, G., Trotta, C., Canfora, E. et al. (2020). The FLUXNET2015 dataset and the ONEFlux processing pipeline for eddy covariance data. Sci Data 7, 225. https://doi.org/10.1038/s41597-020-0534-3
+[6] Law, B. (2024). AmeriFlux FLUXNET-1F US-Me2 Metolius mature ponderosa pine, Ver. 4-6, AmeriFlux AMP. Accessed: 23 Jul 2025. https://doi.org/10.17190/AMF/1854368
 
-[7] Reichstein, M., Falge, E., Baldocchi, D., Papale, D., et al. (2005).  On the separation of net ecosystem exchange into assimilation and ecosystem respiration: review and improved algorithm. Global Change Biology, 11: 1424-1439. https://doi.org/10.1111/j.1365-2486.2005.001002.x
+[7] Pastorello, G., Trotta, C., Canfora, E. et al. (2020). The FLUXNET2015 dataset and the ONEFlux processing pipeline for eddy covariance data. Sci Data 7, 225. https://doi.org/10.1038/s41597-020-0534-3
 
-[8] Lasslop, G., Reichstein, M., Papale, D., Richardson, A.D., et al. (2010). Separation of net ecosystem exchange into assimilation and respiration using a light response curve approach: critical issues and global evaluation. Global Change Biology, 16: 187-208. https://doi.org/10.1111/j.1365-2486.2009.02041.x
+[8] Reichstein, M., Falge, E., Baldocchi, D., Papale, D., et al. (2005).  On the separation of net ecosystem exchange into assimilation and ecosystem respiration: review and improved algorithm. Global Change Biology, 11: 1424-1439. https://doi.org/10.1111/j.1365-2486.2005.001002.x
 
-[9] Pierrat, Z. (2023). Evergreen needleleaf forest pigment, MONI-PAM, eddy-covariance, and tower-scale remote sensing data across four different sites [Data set]. In BioScience. Zenodo. https://doi.org/10.5281/zenodo.10048770
+[9] Lasslop, G., Reichstein, M., Papale, D., Richardson, A.D., et al. (2010). Separation of net ecosystem exchange into assimilation and respiration using a light response curve approach: critical issues and global evaluation. Global Change Biology, 16: 187-208. https://doi.org/10.1111/j.1365-2486.2009.02041.x
 
-[10] Li, X. and Xiao, J. (2019). A global, 0.05-degree product of solar-induced chlorophyll fluorescence derived from OCO-2, MODIS, and reanalysis data. Remote Sensing, 11, 517. https://doi.org/10.3390/rs11050517
+[10] Pierrat, Z. (2023). Evergreen needleleaf forest pigment, MONI-PAM, eddy-covariance, and tower-scale remote sensing data across four different sites [Data set]. In BioScience. Zenodo. https://doi.org/10.5281/zenodo.10048770
 
-[11] Yin, Y., Byrne, B., Liu, J., Wennberg, P., Davis, K. J., Magney, T., et al. (2020). Cropland carbon uptake delayed and reduced by 2019 midwest floods. AGU Advances, 1, e2019AV000140. https://doi.org/10.1029/2019AV000140
+[11] Li, X. and Xiao, J. (2019). A global, 0.05-degree product of solar-induced chlorophyll fluorescence derived from OCO-2, MODIS, and reanalysis data. Remote Sensing, 11, 517. https://doi.org/10.3390/rs11050517
+
+[12] Yin, Y., Byrne, B., Liu, J., Wennberg, P., Davis, K. J., Magney, T., et al. (2020). Cropland carbon uptake delayed and reduced by 2019 midwest floods. AGU Advances, 1, e2019AV000140. https://doi.org/10.1029/2019AV000140
 
 
 ## Data Sources and Attributions
 
 **Esri Global Imagery:** Base layer tiles used under the [Esri Master License Agreement](https://www.esri.com/content/dam/esrisites/en-us/media/legal/ma-full/ma-full.pdf). All map tiles are ©Esri.
 
-**AmeriFlux BASE Dataset:** Used under [CC-BY-4.0 License](https://ameriflux.lbl.gov/sites/siteinfo/US-Me2#data-citation).
+**AmeriFlux FLUXNET Dataset:** Used under [CC-BY-4.0 License](https://ameriflux.lbl.gov/sites/siteinfo/US-Me2#data-citation).
 
 **GOSIF Dataset:** Used with permission from the author.
 
