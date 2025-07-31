@@ -12,4 +12,4 @@ pip install -r requirements.txt
 python -m ipykernel install --user --name=venv --display-name "Python (venv)"
 
 # Launch Jupyter Lab with the specified notebook
-jupyter lab notebooks\exploration.ipynb
+jupyter lab notebooks\1_exploration.ipynb

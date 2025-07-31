@@ -1,6 +1,8 @@
 beautifulsoup4
 cartopy
 contextily
+geopandas
+imageio
 ipykernel
 jupyter
 matplotlib
