@@ -33,7 +33,7 @@ import math
 import os
 from pathlib import Path
 from pydap.client import open_url
-from pydap.cas.urs import setup_session
+# from pydap.cas.urs import setup_session
 import pydap.lib
 import re
 import requests
@@ -94,21 +94,28 @@ def create_retry_session(
     """
     session = requests.Session()
     if username and password:
-        session.headers.update({"User-Agent": "earthaccess"})
-        session.auth = (username, password)
-        auth_resp = session.post(
+        token_sess = requests.Session()
+        token_sess.headers.update({"User-Agent": "earthaccess"})
+        token_sess.auth = (username, password)
+        auth_resp = token_sess.post(
             "https://urs.earthdata.nasa.gov/api/users/find_or_create_token",
             headers={
                 "Accept": "application/json",
             },
             timeout=10,
         )
-        auth_resp.json()
-        if not (auth_resp.ok):
+        
+        if not auth_resp.ok:
             msg = f"Authentication with Earthdata Login failed with:\n{auth_resp.text}"
             raise ValueError(msg)
 
-        token = auth_resp.json()
+        token_data = auth_resp.json()
+        if "access_token" in token_data:
+            token = token_data["access_token"]
+        else:
+            # prints token to screen, potentially vulnerable
+            raise ValueError(f"Could not find token in response: {token_data}")
+            
         session.headers.update({"Authorization": f"Bearer {token}"})
 
     retry_strategy = Retry(
@@ -116,9 +123,9 @@ def create_retry_session(
         status_forcelist=[503],
         allowed_methods=["HEAD", "GET", "OPTIONS"],
         backoff_factor=backoff_factor,
-        raise_on_status=False,  # So that the adapter retries instead of raising immediately
+        raise_on_status=False,
     )
-    adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy) # type: ignore
+    adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy)
     session.mount("https://", adapter)
     session.mount("http://", adapter)
 
@@ -141,10 +148,7 @@ class GesDiscDownloader:
         password = os.getenv("EARTHDATA_PASSWORD")
             
         self.session = create_retry_session(username, password)
-        if username and password:
-            self.pydap_session = setup_session(username, password)
-        else:
-            self.pydap_session = self.session
+        self.pydap_session = self.session
 
         # cache responses in an SQLite database with a TTL of 300 seconds (5 minutes)
         requests_cache.install_cache(
