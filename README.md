@@ -10,10 +10,11 @@ This repository contains code for the upcoming ARSET training session on using s
 
 By the end of this course, you will learn how to:
 
-* Recognize how Solar Induced Fluorescence (SIF) is measured and used as an alternative or complementary measurement for land and vegetation studies.
+* Recognize how the Solar Induced Fluorescence (SIF) is measured and used as a complementary measurement to commonly used indices (NDVI) for land and vegetation applications.
 * Identify advantages and limitations of using space-based SIF measurements to monitor and evaluate vegetation health and condition.
-* Evaluate the usefulness of SIF measurements for studying different land-based scenarios in research and applied science contexts.
-* Conduct vegetation analyses using Python code.
+* Generate a Snapshot Area Map (SAM) plot from OCO-3 data for selected regions of interest to analyze and evaluate vegetation and land change due to fire impacts.
+* Use gap-filled data for selected regions of interest to produce visualizations to analyze and interpret episodic land change due to droughts and floods.
+* Compare how SIF products aggregated in space and time using open source tools are used to study vegetation change across different regions in a variety of science and applied use cases.
 
 ## Prerequisites
 
