@@ -1,8 +1,8 @@
 # SIF-ARSET: Introduction to Solar-Induced Fluorescence (SIF) Data
 
-This repository contains code for the upcoming ARSET training session on using solar-induced fluorescence (SIF) data from the OCO-2 and OCO-3 missions to study plant behavior and health at an ecosystem level. This training is comprised of three exercises:
+This repository contains code for the [ARSET training session on using solar-induced fluorescence (SIF) data](https://www.earthdata.nasa.gov/learn/trainings/solar-induced-fluorescence-sif-observations-assessing-vegetation-changes-related) from the OCO-2 and OCO-3 missions to study plant behavior and health at an ecosystem level. This training is comprised of three exercises:
 
-1. **1_exploration.ipynb**: Methods for retrieving and spatially gridding SIF data to get a sense of the observational record. In this exercise we reproduce monthly gridded plots like those that are found in [Doughty et al., 2022](https://doi.org/10.5194/essd-14-1513-2022). [Youtube recording link](https://www.youtube.com/watch?v=6_XKD3wrJ1g)
+1. **1_exploration.ipynb**: Methods for retrieving and spatially gridding SIF data to get a sense of the observational record. In this exercise we reproduce monthly gridded plots like those that are found in [Doughty et al., 2022](https://doi.org/10.5194/essd-14-1513-2022). [YouTube recording link](https://www.youtube.com/watch?v=6_XKD3wrJ1g)
 2. **2_oco3_sam.ipynb**: A discussion of the Snapshot Area Map (SAM) mode unique to OCO-3, its applications, and a comparison of this data with flux tower data collected from ground-based measurements. The analysis in this notebook is similar to the one found in [Pierrat et al., 2022](https://doi.org/10.1029/2021JG006588), which looked at tower-based SIF and GPP measurements of boreal forest.
 3. **3_gosif.ipynb**: One way to look at SIF with consistent spatial coverage, and the limitations of such a technique. In this exercise we retrieve and discuss data from the Drs. Xing Li and Jingfeng Xiao's 2019 [GOSIF paper](https://doi.org/10.3390/rs11050517).
 
@@ -16,11 +16,11 @@ By the end of this course, you will learn how to:
 * Use gap-filled data for selected regions of interest to produce visualizations to analyze and interpret episodic land change due to droughts and floods.
 * Compare how SIF products aggregated in space and time using open source tools are used to study vegetation change across different regions in a variety of science and applied use cases.
 
-## Prerequisites
-
+## Installation ([Video instructions](https://www.youtube.com/watch?v=6_XKD3wrJ1g&t=1885s))
+ 
 At this time, **anaconda environments** are not tested or supported. It is recommended to install [python3.13](https://www.python.org/downloads/release/python-3139/) or use an existing Python 3.11 or newer installation.
 
-### Clone this Repository to your Computer
+### 1. Clone this Repository to your Computer
 
 Open a new terminal window and navigate to the directory you would like to work in for this training. Once you are in that directory, enter the following command to download the repository:
 
@@ -31,11 +31,11 @@ cd SIF-ARSET
 
 Alternatively, you may wish to use [GitHub Desktop](https://desktop.github.com/download/) which does not require the command line. In the GitHub Desktop app, you would click the "Current Repository" dropdown, then select "Add", then "Clone Repository..." (Shift+Cmd+O on MacOS) and select this repo (you may need to have it starred for it to appear in the list of options). 
 
-### Setting up your Earthdata Login
+### 2. Set up your Earthdata Login
 
 1. If you do not already have an account, go to [Earthdata Login](https://urs.earthdata.nasa.gov/) and create one. Note down the username and password you used for this account.
 
-2. **Note for some users**: Follow the instructions on this page: [https://disc.gsfc.nasa.gov/earthdata-login](https://disc.gsfc.nasa.gov/earthdata-login). If you received an **Error 403: Forbidden** when attempting to run the code in the notebook, it is likely due to note having added the permissions for the NASA GESDISC Data Archive.
+2. **Note for some users**: Follow the instructions on this page: [https://disc.gsfc.nasa.gov/earthdata-login](https://disc.gsfc.nasa.gov/earthdata-login). If you received an **Error 401: Unauthorized** when attempting to run the code in the notebook, it is likely due to not having added the permissions for the NASA GESDISC Data Archive.
 
 3. **Create a new file called .env in the same directory as this readme (the repository root) and put your username and password into it the same way you see it in .env.example:**
 
@@ -44,7 +44,7 @@ EARTHDATA_USERNAME=user
 EARTHDATA_PASSWORD=pass
 ```
 
-### Installing the necessary packages
+### 3. Install the necessary packages
 
 The provided setup script will install the required packages **and open the notebook in a new browser tab**:
 
