@@ -2,9 +2,9 @@
 
 This repository contains code for the upcoming ARSET training session on using solar-induced fluorescence (SIF) data from the OCO-2 and OCO-3 missions to study plant behavior and health at an ecosystem level. This training is comprised of three exercises:
 
-1. **01_exploration.ipynb**: Methods for retrieving and spatially gridding SIF data to get a sense of the observational record. In this exercise we reproduce monthly gridded plots like those that are found in [Doughty et al., 2022](https://doi.org/10.5194/essd-14-1513-2022) 
-2. **02_oco3_sam.ipynb**: A discussion of the Snapshot Area Map (SAM) mode unique to OCO-3, its applications, and a comparison of this data with flux tower data collected from ground-based measurements. The analysis in this notebook is similar to the one found in [Pierrat et al., 2022](https://doi.org/10.1029/2021JG006588), which looked at tower-based SIF and GPP measurements of boreal forest.
-3. **03_gosif.ipynb**: One way to look at SIF with consistent spatial coverage, and the limitations of such a technique. In this exercise we retrieve and discuss data from the Drs. Xing Li and Jingfeng Xiao's 2019 [GOSIF paper](https://doi.org/10.3390/rs11050517).
+1. **1_exploration.ipynb**: Methods for retrieving and spatially gridding SIF data to get a sense of the observational record. In this exercise we reproduce monthly gridded plots like those that are found in [Doughty et al., 2022](https://doi.org/10.5194/essd-14-1513-2022). [Youtube recording link](https://www.youtube.com/watch?v=6_XKD3wrJ1g)
+2. **2_oco3_sam.ipynb**: A discussion of the Snapshot Area Map (SAM) mode unique to OCO-3, its applications, and a comparison of this data with flux tower data collected from ground-based measurements. The analysis in this notebook is similar to the one found in [Pierrat et al., 2022](https://doi.org/10.1029/2021JG006588), which looked at tower-based SIF and GPP measurements of boreal forest.
+3. **3_gosif.ipynb**: One way to look at SIF with consistent spatial coverage, and the limitations of such a technique. In this exercise we retrieve and discuss data from the Drs. Xing Li and Jingfeng Xiao's 2019 [GOSIF paper](https://doi.org/10.3390/rs11050517).
 
 ## Learning Objectives
 
@@ -17,6 +17,8 @@ By the end of this course, you will learn how to:
 * Compare how SIF products aggregated in space and time using open source tools are used to study vegetation change across different regions in a variety of science and applied use cases.
 
 ## Prerequisites
+
+At this time, **anaconda environments** are not tested or supported. It is recommended to install [python3.13](https://www.python.org/downloads/release/python-3139/) or use an existing Python 3.11 or newer installation.
 
 ### Clone this Repository to your Computer
 
@@ -31,9 +33,11 @@ Alternatively, you may wish to use [GitHub Desktop](https://desktop.github.com/d
 
 ### Setting up your Earthdata Login
 
-Before diving into the Jupyter Notebook in the notebooks/ directory, you will need to add your Earthdata username and password to a .env file in this repository. The code will read these credentials to authenticate you when downloading OCO-2 and 3 granules. If you do not have an account, you can first go to [Earthdata Login](https://urs.earthdata.nasa.gov/) and create one. 
+1. If you do not already have an account, go to [Earthdata Login](https://urs.earthdata.nasa.gov/) and create one. Note down the username and password you used for this account.
 
-**Create a new file called .env in the same directory as this readme (the repository root) and put your username and password into it the same way you see it in .env.example:**
+2. **Note for some users**: Follow the instructions on this page: [https://disc.gsfc.nasa.gov/earthdata-login](https://disc.gsfc.nasa.gov/earthdata-login). If you received an **Error 403: Forbidden** when attempting to run the code in the notebook, it is likely due to note having added the permissions for the NASA GESDISC Data Archive.
+
+3. **Create a new file called .env in the same directory as this readme (the repository root) and put your username and password into it the same way you see it in .env.example:**
 
 ```bash
 EARTHDATA_USERNAME=user
@@ -57,7 +61,7 @@ The provided setup script will install the required packages **and open the note
 If you would like to just open the notebook on subsequent uses, assuming your environment is set up, simply run the following command from the `SIF-ARSET` directory:
 
 ```bash
-jupyter lab notebooks/exploration.ipynb
+jupyter lab notebooks/1_exploration.ipynb
 ```
 
 ## Contact
