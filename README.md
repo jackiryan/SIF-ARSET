@@ -18,7 +18,8 @@ By the end of this course, you will learn how to:
 
 ## Installation ([Video instructions](https://www.youtube.com/watch?v=6_XKD3wrJ1g&t=1885s))
  
-At this time, **anaconda environments** are not tested or supported. It is recommended to install [python3.13](https://www.python.org/downloads/release/python-3139/) or use an existing Python 3.11 or newer installation.
+* **Update (21-10-2025)**: **anaconda** has been added and tested against [miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install). Simply run `setup-conda.sh`/`setup-conda.ps1` instead of `setup.sh`/`setup.ps1` in Step 3 of the instructions.
+* **Python version**: If not using conda, it is recommended to install [python3.13](https://www.python.org/downloads/release/python-3139/) or use an existing Python 3.11 or newer installation.
 
 ### 1. Clone this Repository to your Computer
 
@@ -33,12 +34,11 @@ Alternatively, you may wish to use [GitHub Desktop](https://desktop.github.com/d
 
 ### 2. Set up your Earthdata Login
 
-1. If you do not already have an account, go to [Earthdata Login](https://urs.earthdata.nasa.gov/) and create one. Note down the username and password you used for this account.
+* If you do not already have an account, go to [Earthdata Login](https://urs.earthdata.nasa.gov/) and create one. Note down the username and password you used for this account.
 
-2. **Note for some users**: Follow the instructions on this page: [https://disc.gsfc.nasa.gov/earthdata-login](https://disc.gsfc.nasa.gov/earthdata-login). If you received an **Error 401: Unauthorized** when attempting to run the code in the notebook, it is likely due to not having added the permissions for the NASA GESDISC Data Archive.
+* **Note for some users**: Follow the instructions on this page: [https://disc.gsfc.nasa.gov/earthdata-login](https://disc.gsfc.nasa.gov/earthdata-login). If you received an **Error 401: Unauthorized** when attempting to run the code in the notebook, it is likely due to not having added the permissions for the NASA GESDISC Data Archive.
 
-3. **Create a new file called .env in the same directory as this readme (the repository root) and put your username and password into it the same way you see it in .env.example:**
-
+* **Create a new file called .env in the same directory as this readme (the repository root) and put your username and password into it the same way you see it in .env.example:**
 ```bash
 EARTHDATA_USERNAME=user
 EARTHDATA_PASSWORD=pass
@@ -52,10 +52,18 @@ The provided setup script will install the required packages **and open the note
 ```bash
 ./setup.sh
 ```
+or if using **conda**:
+```bash
+./setup-conda.sh
+```
 
 **On Windows**
 ```powershell
 .\setup.ps1
+```
+or if using **conda**:
+```powershell
+./setup-conda.ps1
 ```
 
 If you would like to just open the notebook on subsequent uses, assuming your environment is set up, simply run the following command from the `SIF-ARSET` directory:
