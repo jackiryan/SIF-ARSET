@@ -1,3 +1,6 @@
+# Test version of setup.ps1 - does not launch Jupyter Lab
+# Used for CI/CD testing
+
 # Create a virtual environment
 Write-Host "Creating virtual environment..." -ForegroundColor Green
 python -m venv venv
@@ -37,8 +40,6 @@ if (-not $success) {
     Write-Host "  2. Run: .\setup-conda.ps1" -ForegroundColor White
     Write-Host "`nAlternatively, you can try installing from Christoph Gohlke's wheel collection:" -ForegroundColor Yellow
     Write-Host "  https://github.com/cgohlke/geospatial-wheels/" -ForegroundColor White
-    Write-Host "`nPress any key to exit..." -ForegroundColor Gray
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     exit 1
 }
 
@@ -66,7 +67,8 @@ Remove-Item requirements_temp.txt
 Write-Host "`nInstalling Jupyter kernel..." -ForegroundColor Green
 python -m ipykernel install --user --name=venv --display-name "Python (venv)"
 
-# Launch Jupyter Lab with the specified notebook
-Write-Host "`nLaunching Jupyter Lab..." -ForegroundColor Green
-Write-Host "The notebook will open in your default browser." -ForegroundColor Cyan
-jupyter lab notebooks\1_exploration.ipynb
+Write-Host "`n========================================" -ForegroundColor Green
+Write-Host "Setup completed successfully!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "`nTo launch Jupyter Lab, run:" -ForegroundColor Cyan
+Write-Host "  jupyter lab notebooks\1_exploration.ipynb" -ForegroundColor White

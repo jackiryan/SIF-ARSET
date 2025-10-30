@@ -1,0 +1,79 @@
+name: Test Windows Setup
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'setup.ps1'
+      - 'setup-test.ps1'
+      - 'requirements.txt'
+      - '.github/workflows/test-windows-setup.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'setup.ps1'
+      - 'setup-test.ps1'
+      - 'requirements.txt'
+      - '.github/workflows/test-windows-setup.yml'
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  test-windows-pip:
+    runs-on: windows-latest
+    timeout-minutes: 30  # Prevent hanging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Run setup test script
+        run: .\setup-test.ps1
+        shell: powershell
+
+      - name: Verify installation
+        run: |
+          venv\Scripts\Activate.ps1
+          python -c "import rasterio; print(f'rasterio version: {rasterio.__version__}')"
+          python -c "import geopandas; print(f'geopandas version: {geopandas.__version__}')"
+          python -c "import cartopy; print(f'cartopy version: {cartopy.__version__}')"
+          python -c "import netCDF4; print(f'netCDF4 version: {netCDF4.__version__}')"
+          jupyter --version
+        shell: powershell
+
+      - name: Test import of pysif modules
+        run: |
+          venv\Scripts\Activate.ps1
+          python -c "import sys; sys.path.insert(0, 'src'); from pysif import download, gridding, display"
+        shell: powershell
+
+  test-windows-conda:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: '3.13'
+
+      - name: Create conda environment
+        run: conda env create -f environment.yml
+        shell: bash -l {0}
+
+      - name: Verify conda installation
+        run: |
+          conda activate sif-arset
+          python -c "import rasterio; print(f'rasterio version: {rasterio.__version__}')"
+          python -c "import geopandas; print(f'geopandas version: {geopandas.__version__}')"
+          python -c "import cartopy; print(f'cartopy version: {cartopy.__version__}')"
+          jupyter --version
+        shell: bash -l {0}
