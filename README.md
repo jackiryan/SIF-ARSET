@@ -17,8 +17,9 @@ By the end of this course, you will learn how to:
 * Compare how SIF products aggregated in space and time using open source tools are used to study vegetation change across different regions in a variety of science and applied use cases.
 
 ## Installation ([Video instructions](https://www.youtube.com/watch?v=6_XKD3wrJ1g&t=1885s))
- 
+
 * **Update (21-10-2025)**: **anaconda** has been added and tested against [miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install). Simply run `setup-conda.sh`/`setup-conda.ps1` instead of `setup.sh`/`setup.ps1` in Step 3 of the instructions.
+* **Windows Users**: We **strongly recommend using the conda installation method** (`setup-conda.ps1`) as it provides pre-compiled geospatial libraries (GDAL, rasterio) that can be difficult to install via pip on Windows. If you encounter GDAL-related errors with `setup.ps1`, please use the conda method instead.
 * **Python version**: If not using conda, it is recommended to install [python3.13](https://www.python.org/downloads/release/python-3139/) or use an existing Python 3.11 or newer installation.
 
 ### 1. Clone this Repository to your Computer
@@ -57,13 +58,13 @@ or if using **conda**:
 ./setup-conda.sh
 ```
 
-**On Windows**
+**On Windows** (conda recommended):
 ```powershell
+# Recommended: Using conda (avoids GDAL compilation issues)
+.\setup-conda.ps1
+
+# Alternative: Using pip (may require manual GDAL setup)
 .\setup.ps1
-```
-or if using **conda**:
-```powershell
-./setup-conda.ps1
 ```
 
 If you would like to just open the notebook on subsequent uses, assuming your environment is set up, simply run the following command from the `SIF-ARSET` directory:
