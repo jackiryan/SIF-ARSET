@@ -1,0 +1,12 @@
+name: Test Windows Setup
+on: [push, pull_request]
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+      - name: Test setup script
+        run: .\setup.ps1
