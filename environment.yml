@@ -4,9 +4,9 @@ channels:
   - defaults
 dependencies:
   - python>=3.11
-  - beautifulsoup4
   - cartopy
   - contextily
+  - earthaccess>=0.15
   - geopandas
   - imageio
   - ipykernel
@@ -16,11 +16,9 @@ dependencies:
   - notebook
   - numpy
   - pandas
-  - pydap
   - python-dotenv
   - rasterio
   - rasterstats
   - requests
-  - requests-cache
   - scikit-learn
   - tqdm

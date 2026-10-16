@@ -1,6 +1,6 @@
-beautifulsoup4
 cartopy
 contextily
+earthaccess>=0.15
 geopandas
 imageio
 ipykernel
@@ -10,11 +10,9 @@ netcdf4
 notebook
 numpy
 pandas
-pydap
 python-dotenv
 rasterio
 rasterstats
 requests
-requests-cache
 scikit-learn
 tqdm

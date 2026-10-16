@@ -37,13 +37,15 @@ Alternatively, you may wish to use [GitHub Desktop](https://desktop.github.com/d
 
 * If you do not already have an account, go to [Earthdata Login](https://urs.earthdata.nasa.gov/) and create one. Note down the username and password you used for this account.
 
-* **Note for some users**: Follow the instructions on this page: [https://disc.gsfc.nasa.gov/earthdata-login](https://disc.gsfc.nasa.gov/earthdata-login). If you received an **Error 401: Unauthorized** when attempting to run the code in the notebook, it is likely due to not having added the permissions for the NASA GESDISC Data Archive.
+* **Note for some users**: Follow the instructions on this page: [https://disc.gsfc.nasa.gov/earthdata-login](https://disc.gsfc.nasa.gov/earthdata-login). If you received an **Error 401: Unauthorized** or an **EulaNotAccepted** error when attempting to run the code in the notebook, it is likely due to not having added the permissions for the NASA GESDISC Data Archive.
 
 * **Create a new file called .env in the same directory as this readme (the repository root) and put your username and password into it the same way you see it in .env.example:**
 ```bash
 EARTHDATA_USERNAME=user
 EARTHDATA_PASSWORD=pass
 ```
+
+The notebooks use the [earthaccess](https://earthaccess.readthedocs.io/) library to log in and download OCO-2 and OCO-3 data from NASA Earthdata, and earthaccess reads your username and password from these variables. If you skip this step, the notebooks will ask you for your username and password instead.
 
 ### 3. Install the necessary packages
 
