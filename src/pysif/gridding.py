@@ -35,6 +35,7 @@ the values of an array as a side effect.
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timedelta
+import earthaccess
 from glob import glob
 from netCDF4 import Dataset, date2num, Variable
 import numpy as np
@@ -43,8 +44,8 @@ import os
 import re
 from tqdm.notebook import tqdm
 
-from . import GesDiscDownloader
 from . import L2_SCHEMAS
+from .download import granule_date, open_granule_in_memory
 
 EQ_STRS = ["=", "==", "eq"]
 GT_STRS = [">", "gt"]
@@ -55,31 +56,25 @@ def get_variable_array(
     granule: object,
     variable: str,
     dd: bool = False,
-    pydap: bool = True,
 ) -> npt.NDArray[np.float32]:
     """
     Retrieve a variable's data from a granule and return it as a numpy array of type float32.
 
     Arguments:
-        granule (DatasetType): A pydap dataset containing the variable of interest.
-        variable (str): The name of the variable to extract.
+        granule (Dataset): A netCDF4 dataset containing the variable of interest.
+        variable (str): The name of the variable to extract, including its group if it is
+            not at the root of the file, e.g. "Metadata/MeasurementMode".
         dd (bool): Flag indicating whether to perform a reshape for footprint bounds. Default is False.
-        pydap (bool): If False, use syntax for local netCDF data
 
     Returns:
         npt.NDArray[np.float32]: A numpy array of type float32 containing the variable data, reshaped if required.
     """
-    if pydap:
-        # pydap flattens all variables to the top level by joining group names with an underscore
-        varname = variable.replace("/", "_")
-        data = np.array(granule[varname].data[:], dtype=np.float32) # type: ignore
+    if "/" in variable:
+        group = variable.split("/")[0]
+        varname = variable.split("/")[-1]
+        data = np.array(granule[group][varname][:], dtype=np.float32) # type: ignore
     else:
-        if "/" in variable:
-            group = variable.split("/")[0]
-            varname = variable.split("/")[-1]
-            data = np.array(granule[group][varname][:], dtype=np.float32) # type: ignore
-        else:
-            data = np.array(granule[variable][:], dtype=np.float32) # type: ignore
+        data = np.array(granule[variable][:], dtype=np.float32) # type: ignore
     # DD means there is a second index for footprint bounds of dimension 4
     if dd:
         if data.shape[0] == 4:
@@ -93,12 +88,9 @@ def get_variable_array(
     return data
 
 
-def get_granule_date(granule: object, pydap: bool) -> str:
+def get_granule_date(granule: object) -> str:
     """extract the date metadata from an input netCDF."""
-    if pydap:
-        return granule.attributes["HDF5_GLOBAL"]["date_time_coverage"][0].split("T")[0] # type: ignore
-    else:
-        return granule.date_time_coverage[0].split("T")[0] # type: ignore
+    return granule.date_time_coverage[0].split("T")[0] # type: ignore
 
 
 def div_line(
@@ -303,28 +295,38 @@ def generate_dates(start_date: datetime, end_date: datetime) -> list[datetime]:
     return dates
 
 
-def validate_date_range(
-    dl: GesDiscDownloader, dataset: str, start_date: datetime, end_date: datetime
-) -> None:
+def search_remote_granules(
+    dataset: str, start_date: datetime, end_date: datetime
+) -> dict[datetime, earthaccess.DataGranule]:
     """
-    Validate that the requested date range is within the available dataset time range
-    when using the pydap client for sourcing data.
+    Search NASA's Common Metadata Repository (CMR) for the daily granules of a dataset
+    in the requested date range, for streaming the data with earthaccess.
 
     Arguments:
-        dl (GesDiscDownloader): The downloader instance.
-        dataset (str): The dataset identifier.
+        dataset (str): The dataset identifier in the form "<short name>.<version>", as used
+            in GES DISC directory names, e.g. "OCO3_L2_Lite_SIF.11r".
         start_date (datetime): The requested start date.
         end_date (datetime): The requested end date.
 
+    Returns:
+        dict[datetime, DataGranule]: The granules found, keyed by the date they cover.
+
     Raises:
-        ValueError: If the requested date range is outside the available time range for the dataset.
+        ValueError: If no granules are available in the requested date range.
     """
-    data_range = dl.get_dataset_timerange(dataset)
-    if start_date < data_range[0] or end_date > data_range[1]:
+    short_name, _, version = dataset.partition(".")
+    results = earthaccess.search_data(
+        short_name=short_name,
+        version=version,
+        # Passing True excludes the previous day's granule, which ends at midnight on start_date
+        temporal=(start_date.date(), end_date.date(), True),
+    )
+    if not results:
         raise ValueError(
-            f"requested date range ({start_date.strftime('%Y-%m-%d')} to "
-            f"{end_date.strftime('%Y-%m-%d')}) is outside the available time range for {dataset}"
+            f"no {dataset} granules found between {start_date.strftime('%Y-%m-%d')} and "
+            f"{end_date.strftime('%Y-%m-%d')}"
         )
+    return {granule_date(granule): granule for granule in results}
 
 
 def validate_local_dir(
@@ -336,7 +338,7 @@ def validate_local_dir(
 
     Arguments:
         local_dir (str): String path of the source granule directory.
-        dataset (str): The dataset identifier, not the same as the one used in the OpenDAP portal.
+        dataset (str): The start of the granule filenames, e.g. "oco3_LtSIF".
         start_date (datetime): The requested start date.
         end_date (datetime): The requested end date.
 
@@ -360,7 +362,7 @@ def get_local_granule(local_dir: str, dataset: str, d: datetime) -> object:
 
     Arguments:
         local_dir (str): String path of the source granule directory.
-        dataset (str): The dataset identifier, not the same as the one used in the OpenDAP portal.
+        dataset (str): The start of the granule filenames, e.g. "oco3_LtSIF".
         d (datetime): The requested date.
 
     Returns:
@@ -395,18 +397,15 @@ def process_day_granule(
     mat_data_weights: npt.NDArray[np.float32],
     schema: dict[str, str],
     filters: dict[str, tuple[str, float]] | None = None,
-    pydap: bool = True,
 ) -> None:
     """
-    Process a single granule for a given date and update the grid data arrays.
+    Process a single granule and update the grid data arrays.
 
-    This function uses the GesDiscDownloader to retrieve the granule for the given date,
-    extracts necessary variables, and aggregates them onto the grid.
+    This function extracts the necessary variables from the granule and aggregates
+    them onto the grid.
 
     Arguments:
-        dl (GesDiscDownloader): The downloader instance.
-        dataset (str): Dataset identifier.
-        d (datetime): Date for which the granule is to be processed.
+        granule (Dataset): The netCDF4 dataset for the granule to be processed.
         lat_min (float): Minimum latitude of the grid.
         lat_max (float): Maximum latitude of the grid.
         lon_min (float): Minimum longitude of the grid.
@@ -422,30 +421,25 @@ def process_day_granule(
         filters (dict[str, tuple[str, float]]): Optionally specify a list of filters
             where they key is the netCDF variable to filter on, and the values are a
             tuple of a comparator string (<, ==, etc.) and the threshold value
-        pydap (bool): If True, handle the granule dataset using pydap syntax
 
     Returns:
         None
     """
     try:
-        g_date = get_granule_date(granule, pydap)
+        g_date = get_granule_date(granule)
     except:
         g_date = "unknown date"
     try:
-        lat_granule = get_variable_array(granule, schema["lat"], pydap=pydap)
-        lon_granule = get_variable_array(granule, schema["lon"], pydap=pydap)
+        lat_granule = get_variable_array(granule, schema["lat"])
+        lon_granule = get_variable_array(granule, schema["lon"])
         if np.any(
             (lat_granule > lat_min)
             & (lat_granule < lat_max)
             & (lon_granule > lon_min)
             & (lon_granule < lon_max)
         ):
-            lat_in_ = get_variable_array(
-                granule, schema["vertex_lat"], dd=True, pydap=pydap
-            )
-            lon_in_ = get_variable_array(
-                granule, schema["vertex_lon"], dd=True, pydap=pydap
-            )
+            lat_in_ = get_variable_array(granule, schema["vertex_lat"], dd=True)
+            lon_in_ = get_variable_array(granule, schema["vertex_lon"], dd=True)
             # If the first dimension is 4, transpose the arrays
             if lat_in_.shape[0] == 4:
                 lat_in_ = lat_in_.T
@@ -467,7 +461,7 @@ def process_day_granule(
                 for key, val in filters.items():
                     comp = val[0]
                     thresh = val[1]
-                    key_arr = get_variable_array(granule, key, pydap=pydap)
+                    key_arr = get_variable_array(granule, key)
                     if comp in EQ_STRS:
                         bool_add += key_arr == thresh
                         b_counter += 1
@@ -487,7 +481,7 @@ def process_day_granule(
                 n_pixels = lat_in_.shape[0]
                 mat_in = np.zeros((n_pixels, n_vars), dtype=np.float32)
                 for col, var in enumerate(variables):
-                    mat_in[:, col] = get_variable_array(granule, var, pydap=pydap)
+                    mat_in[:, col] = get_variable_array(granule, var)
                 iLat_ = np.floor(
                     ((lat_in_[idx, :] - lat_min) / (lat_max - lat_min)) * len(lat_vals)
                 ).astype(int)
@@ -549,7 +543,6 @@ def process_day_worker(args):
             mat_data_weights,
             granule_schema,
             filters=filters,
-            pydap=False,
         )
         
         result_status = "success"
@@ -587,13 +580,17 @@ def create_gridded_raster(
     Create a gridded raster netCDF file from a dataset over a specified date range.
 
     This function sets up the output grid and netCDF file, validates the date range,
-    and then, for each day in the range, accesses the dataset using GesDiscDownloader,
-    processes the granule, aggregates data onto the grid, and writes the results to file.
+    and then, for each day in the range, reads the granule from local_dir or streams it
+    from NASA Earthdata with earthaccess, aggregates its data onto the grid, and writes
+    the results to file.
 
     Arguments:
         start_date (datetime): The start date for the data extraction.
         end_date (datetime): The end date for the data extraction.
-        dataset (str): The dataset identifier to be processed.
+        dataset (str): The dataset to be processed. When streaming data, this is the
+            "<short name>.<version>" used in GES DISC directory names (e.g.
+            "OCO3_L2_Lite_SIF.11r"). When using local_dir, this is the start of the
+            granule filenames instead (e.g. "oco3_LtSIF").
         variables (List[str]): A list of variable names to extract from the dataset.
         out_file (str): Path to the output netCDF file.
         lat_min (float): Minimum latitude for the output grid. Default is -90.0.
@@ -603,28 +600,27 @@ def create_gridded_raster(
         lat_res (float): Latitude resolution of the output grid. Default is 1.0.
         lon_res (float): Longitude resolution of the output grid. Default is 1.0.
         local_dir (str | None): If specified, use a local directory to source input
-            granules instead of progressively downloading using pydap. This will also
-            enable parallel processing.
+            granules instead of streaming them with earthaccess. This will also enable
+            parallel processing. If not specified, you must call earthaccess.login()
+            before calling this function.
         filters (dict[str, tuple[str, float]]): Optionally specify a list of filters
             where they key is the netCDF variable to filter on, and the values are a
             tuple of a comparator string (<, ==, etc.) and the threshold value
         num_workers (int): Number of parallel workers to process the data. Default is 5.
-            Parallel processing is only used if local_dir is specified because GES DISC
-            does not support multiple pydap clients from the same IP.
+            Parallel processing is only used if local_dir is specified.
 
     Returns:
         str: The path to the output netCDF file.
 
     Raises:
-        ValueError: If the requested date range is outside the available time range for the dataset.
+        ValueError: If no granules are available in the requested date range when streaming.
         ValueError: If the requested dataset does not have a known schema describing its lat/lon variables.
     """
     dates = generate_dates(start_date, end_date)
 
-    dl = None
+    remote_granules: dict[datetime, earthaccess.DataGranule] = {}
     if local_dir is None:
-        dl = GesDiscDownloader()
-        validate_date_range(dl, dataset, start_date, end_date)
+        remote_granules = search_remote_granules(dataset, start_date, end_date)
         if num_workers > 1:
             print("Warning: Parallel processing requires local_dir. Falling back to sequential processing.")
             num_workers = 1
@@ -752,9 +748,12 @@ def create_gridded_raster(
         mat_data_weights = np.zeros((len(lon_vals), len(lat_vals)), dtype=np.float32)
 
         for t_ndx, d in enumerate(tqdm(dates, desc="Time slices")):
+            granule = None
             try:
                 if local_dir is None:
-                    granule = dl.get_granule_by_date(dataset, d) # type: ignore
+                    if d not in remote_granules:
+                        raise FileNotFoundError(f"No {dataset} granule for {d.strftime('%Y-%m-%d')}")
+                    granule = open_granule_in_memory(remote_granules[d])
                 else:
                     granule = get_local_granule(local_dir, dataset, d)
 
@@ -774,7 +773,6 @@ def create_gridded_raster(
                     mat_data_weights,
                     granule_schema,
                     filters=filters,
-                    pydap=(local_dir is None),
                 )
 
                 if np.max(mat_data_weights) > 0:
